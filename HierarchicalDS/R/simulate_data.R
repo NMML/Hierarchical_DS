@@ -1,6 +1,6 @@
 # simulate data for hierarchical abundance estimation
 simulate_data<-function(S){
-	S=10 #number of sites
+	#S=10 #number of sites
 	
 	#process parameters
 	lambda.grp=3
@@ -46,5 +46,30 @@ simulate_data<-function(S){
 	}
 	
 	Dat=Dat[which(Dat[,4]>0 | Dat[,5]>0),]
-	Dat 
+	
+	#put things in "Jay's" format
+	Dat2=rbind(Dat,Dat)
+	ipl=1
+	for(irecord in 1:nrow(Dat)){
+		Dat2[ipl,1]=Dat[irecord,1]
+		Dat2[ipl+1,1]=Dat[irecord,1]
+		Dat2[ipl,3]=Dat[irecord,2]
+		Dat2[ipl+1,3]=Dat[irecord,3]
+		Dat2[ipl,4]=Dat[irecord,4]
+		Dat2[ipl+1,4]=Dat[irecord,5]
+		Dat2[ipl,5]=1  #observer covariate that has no effect
+		Dat2[ipl+1,5]=0
+		Dat2[ipl,6]=Dat[irecord,6]
+		Dat2[ipl+1,6]=Dat[irecord,6]
+		Dat2[ipl,7]=Dat[irecord,7]
+		Dat2[ipl+1,7]=Dat[irecord,7]
+		Dat2[ipl,2]=irecord  #match number
+		Dat2[ipl+1,2]=irecord
+		ipl=ipl+2
+	}
+	Dat2=as.data.frame(Dat2)
+	colnames(Dat2)=c("Transect","Match","Observer","Obs","Seat","Distance","Group")
+	Dat2[,"Observer"]=as.factor(Dat2[,"Observer"])
+	Dat2[,"Seat"]=as.factor(Dat2[,"Seat"])
+	Dat2 
 }
