@@ -2,13 +2,12 @@
 #hierarchical_DS<-function(Dat,Adj,Area.hab=1,Mapping,Area.trans,Bin.length,Hab.cov,n.obs.cov=0,Det.cov=NULL,pol.eff=c(1:2),point.ind=TRUE,Inits=NULL,grps=FALSE,M,Control,adapt=TRUE)
 	#Dat - matrix or data frame with the following columns
 		#1-transect ID
-		#2-match number
+		#2-match number  #currently, a maximum of 2 observers on each transect
 		#3-Observer ID
 		#4-Observation (0/1)
-		#5-x - Observer covariates (these can vary among transects but are assumed constant within transects)
+		#5-x - Observer covariates 
 		#x+1-Distance (if all integers, assumed to be discrete bins; if continuous, assumed standardized to (0,1) interval)
 		#x+2-?? Group size and other individual covariates thought to influence detection; if group size is one of them, it's assumed to be column x+2
-			#Note that covariates at transect level need to be specified in "Det.cov"
 			#Note: column names are used to tag covariates
 	#Adj - adjacency matrix for habitat cells (diagonal matrix implies spatial independence)
 	#Area.hab - a vector giving the area of each geographical strata (default is equal area)
@@ -22,7 +21,7 @@
 		#there are several "reserved" variable names.  "Distance", "Observer", and "Group" are reserved variable names.
 	#Cov.prior.pdf - if individual covariates are provided, this character vector gives the form of the prior pdfs for each covariate
 				#current possibilities are "poisson", "pois1","uniform.disc", "uniform.cont", or "normal".
-				#"pois1" is the 1+x where x~poisson
+				#"pois1" is 1+x where x~poisson
 	#Cov.prior.parms - a (2 X n) matrix where n is the number of individual covariates (other than distance).  Each column
 			#gives the parameters associated with the prior pdf of a given covariate (only the value in the first row is
 			#used for "poisson"; for normal, first row gives mean, second row gives sd; for uniform, first row gives lower,
@@ -101,7 +100,10 @@
 
 	var.names=colnames(Dat)
 	factor.ind=sapply(Dat[1,],is.factor)
+	
+	
 	#Check to make sure input values are internally consistent
+	if(n.obs.max>2)cat("\n ERROR: Current max number of observers per transect is 2\n")
 	#Later...
 	
 
@@ -194,6 +196,7 @@
 	
 	DM.hab=model.matrix(Hab.formula,data=Hab.cov)
 	DM.det=model.matrix(Det.formula,data=Stacked)
+	n.beta.det=ncol(DM.det)
 	
 	get_mod_matrix<-function(Cur.dat,stacked.names,factor.ind,Det.formula,Levels){
 		Cur.dat=as.data.frame(Cur.dat)
@@ -208,29 +211,37 @@
 	}
 	
 	
-	generate_inits<-function(DM.hab,DM.det,G.transect,Area.trans,Area.hab){
-		Par=list(det=rnorm(ncol(DM.det),0,1),hab=rep(0,ncol(DM.hab)),cor=runif(1,0,1))
+	generate_inits<-function(DM.hab,DM.det,G.transect,Area.trans,Area.hab,point.ind){
+		Par=list(det=rnorm(ncol(DM.det),0,1),hab=rep(0,ncol(DM.hab)),cor=ifelse(point.ind,runif(1,0,1),0))
 		Par$hab[1]=mean(G.transect)/(mean(Area.trans)*mean(Area.hab))*exp(rnorm(1,0,1))
 		Par
 	}
 	
 	Par=Inits
-	if(is.null(Inits)==TRUE)Par=generate_inits(DM.hab,DM.det,G.transect,Area.trans,Area.hab)	
+	if(is.null(Inits)==TRUE)Par=generate_inits(DM.hab,DM.det,G.transect,Area.trans,Area.hab,point.ind)	
 			
 	mcmc.length=Control$iter-Control$burnin
 	MCMC=list(N=rep(0,mcmc.length),G=matrix(0,mcmc.length,S),Hab=data.frame(matrix(0,mcmc.length,length(Par$hab))),Det=data.frame(matrix(0,mcmc.length,length(Par$det))),cor.par=rep(0,mcmc.length))
 	colnames(MCMC$Hab)=colnames(DM.hab)
 	colnames(MCMC$Det)=colnames(DM.det)
+	Accept=list(cor=0,N=rep(0,n.transects))
 	
-	Y.tilde=matrix(0,n.transects,M)
 	dist.pl=3+n.obs.cov
 	if(i.binned==0)dist.mult=1
 	if(i.binned==1)dist.mult=1/(n.bins-1)
 	
+	#initialize Y.tilde (pretends correlation between observations is zero)
+    Y.tilde=matrix(0,M,n.transects)
+	for(itrans in 1:n.transects){
+		X=get_mod_matrix(Cur.dat=Data[itrans,,],stacked.names,factor.ind,Det.formula,Levels)
+		ExpY=X%*%Par$det
+		Y.tilde[,itrans]=rtruncnorm(M, a=ifelse(Data[itrans,,2]==0,-Inf,0), b=ifelse(Data[itrans,,2]==0,0,Inf), ExpY, 1)		
+	}
+	
+	
 	for(iiter in 1:Control$iter){
 		#if((iiter%%1000)==1)cat(paste('\n ', iiter))
 		cat(paste('\n ', iiter))
-		Accept=list(cor.par=0,N=rep(0,n.transects))
 		
 		### update abundance parameters at the strata scale
 		
@@ -253,7 +264,7 @@
 					ExpY=X%*%Par$det
 					P=c(1:a)
 					for(i in 1:a){
-						Sigma[offdiag]=i.binned*Par$cor*(Cur.dat[i*n.Observers[itrans],dist.pl]-1)*dist.mult+(1-i.binned)*Cur.dat[i*n.Observers[itrans],dist.pl]
+						Sigma[offdiag]=Par$cor*(i.binned*(Cur.dat[i*n.Observers[itrans],dist.pl]-1)*dist.mult+(1-i.binned)*Cur.dat[i*n.Observers[itrans],dist.pl])
 						P[i]=pmvnorm(upper=c(0,0),mean=ExpY[(i*n.Observers[itrans]-n.Observers[itrans]+1):(i*n.Observers[itrans])],sigma=Sigma)
 					}
 					tmp.sum=0
@@ -267,7 +278,16 @@
 						if(grps==FALSE)N.transect[itrans]=G.transect[itrans]
 						else N.transect[itrans]=sum(Data[itrans,1:n.Records[itrans],which(stacked.names=="Group")])/n.Observers[itrans]
 						Accept$N[itrans]=Accept$N[itrans]+1
-					}					
+						#generate Y-tilde values
+						Tmp=matrix(ExpY,a,n.Observers[itrans],byrow=TRUE)
+						Y.tilde.temp=rtruncnorm(n=a,a=-Inf,b=0,mean=Tmp[,1],sd=1)
+						if(n.Observers[itrans]>1){
+							Dist=matrix(Cur.dat[,dist.pl],a,n.Observers[itrans],byrow=TRUE)
+							Cor=Par$cor*(i.binned*(Dist[,1]-1)*dist.mult+(1-i.binned)*Dist[,1])
+							Y.tilde.temp=cbind(Y.tilde.temp,rtruncnorm(n=a,a=-Inf,b=0,mean=Tmp[,2]+Cor*(Y.tilde.temp-Tmp[,2]),sd=sqrt(1-Cor^2)))
+						}
+						Y.tilde[(n.Records[itrans]-a*n.Observers[itrans]+1):n.Records[itrans],itrans]=as.vector(t(Y.tilde.temp))
+					}	
 				}
 			}
 			else{ #proposal a deletion
@@ -277,7 +297,7 @@
 					ExpY=X%*%Par$det
 					P=c(1:-a)
 					for(i in 1:-a){
-						Sigma[offdiag]=i.binned*Par$cor*(Cur.dat[i*n.Observers[itrans],dist.pl]-1)*dist.mult+(1-i.binned)*Cur.dat[i*n.Observers[itrans],dist.pl]
+						Sigma[offdiag]=Par$cor*(i.binned*(Cur.dat[i*n.Observers[itrans],dist.pl]-1)*dist.mult+(1-i.binned)*Cur.dat[i*n.Observers[itrans],dist.pl])
 						P[i]=pmvnorm(upper=rep(0,n.Observers[itrans]),mean=ExpY[(i*n.Observers[itrans]-n.Observers[itrans]+1):(i*n.Observers[itrans])],sigma=Sigma)
 					}
 					tmp.sum=0
@@ -311,23 +331,24 @@
 			if(G.transect[itrans]>G.obs[itrans]){
 				#distance
 				if(i.binned==1)dist.star=sample(c(1:n.bins),cur.G,replace=TRUE)
-				else dist.star=runif(1,cur.G)
+				else dist.star=runif(cur.G)
 				Cur.dat=Data[itrans,(G.obs[itrans]*n.Observers[itrans]+1):(G.transect[itrans]*n.Observers[itrans]),]
 				cur.dist=Cur.dat[,dist.pl]
 				X=get_mod_matrix(Cur.dat=Cur.dat,stacked.names,factor.ind,Det.formula,Levels)
 				ExpY=X%*%Par$det
 				L.old=c(1:length(dist.star))
+				Tmp.Y.tilde=Y.tilde[(G.obs[itrans]*n.Observers[itrans]+1):(G.transect[itrans]*n.Observers[itrans]),itrans]
 				for(i in 1:length(dist.star)){
-					Sigma[offdiag]=i.binned*Par$cor*(cur.dist[i]-1)*dist.mult+(1-i.binned)*cur.dist[i]
-					L.old[i]=pmvnorm(upper=rep(0,n.Observers[itrans]),mean=ExpY[(i*n.Observers[itrans]-n.Observers[itrans]+1):(i*n.Observers[itrans])],sigma=Sigma)
+					Sigma[offdiag]=Par$cor*(i.binned*(cur.dist[i]-1)*dist.mult+(1-i.binned)*cur.dist[i])
+					L.old[i]=dmvnorm(Tmp.Y.tilde[(i*n.Observers[itrans]-n.Observers[itrans]+1):(i*n.Observers[itrans])],mean=ExpY[(i*n.Observers[itrans]-n.Observers[itrans]+1):(i*n.Observers[itrans])],sigma=Sigma)
 				}	
 				Cur.dat[,dist.pl]=rep(dist.star,each=n.Observers[itrans])
 				X=get_mod_matrix(Cur.dat=Cur.dat,stacked.names,factor.ind,Det.formula,Levels)
 				ExpY=X%*%Par$det
 				L.star=L.old
 				for(i in 1:length(dist.star)){
-					Sigma[offdiag]=i.binned*Par$cor*(dist.star[i]-1)*dist.mult+(1-i.binned)*dist.star[i]
-					L.star[i]=pmvnorm(upper=rep(0,n.Observers[itrans]),mean=ExpY[(i*n.Observers[itrans]-n.Observers[itrans]+1):(i*n.Observers[itrans])],sigma=Sigma)
+					Sigma[offdiag]=Par$cor*(i.binned*(dist.star[i]-1)*dist.mult+(1-i.binned)*dist.star[i])
+					L.star[i]=dmvnorm(Tmp.Y.tilde[(i*n.Observers[itrans]-n.Observers[itrans]+1):(i*n.Observers[itrans])],mean=ExpY[(i*n.Observers[itrans]-n.Observers[itrans]+1):(i*n.Observers[itrans])],sigma=Sigma)
 				}	
 				Acc=(runif(length(L.star))<(L.star/L.old))
 				Data[itrans,(G.obs[itrans]*n.Observers[itrans]+1):(G.transect[itrans]*n.Observers[itrans]),dist.pl]=(1-rep(Acc,each=n.Observers[itrans]))*Data[itrans,(G.obs[itrans]*n.Observers[itrans]+1):(G.transect[itrans]*n.Observers[itrans]),dist.pl]+rep(Acc,each=n.Observers[itrans])*rep(dist.star,each=n.Observers[itrans])
@@ -342,16 +363,16 @@
 						ExpY=X%*%Par$det
 						L.old=c(1:length(Cov.star))
 						for(i in 1:length(Cov.star)){
-							Sigma[offdiag]=i.binned*Par$cor*(cur.dist[i]-1)*dist.mult+(1-i.binned)*cur.dist[i]
-							L.old[i]=pmvnorm(upper=rep(0,n.Observers[itrans]),mean=ExpY[(i*n.Observers[itrans]-n.Observers[itrans]+1):(i*n.Observers[itrans])],sigma=Sigma)
+							Sigma[offdiag]=Par$cor*(i.binned*(cur.dist[i]-1)*dist.mult+(1-i.binned)*cur.dist[i])
+							L.old[i]=dmvnorm(Tmp.Y.tilde[(i*n.Observers[itrans]-n.Observers[itrans]+1):(i*n.Observers[itrans])],mean=ExpY[(i*n.Observers[itrans]-n.Observers[itrans]+1):(i*n.Observers[itrans])],sigma=Sigma)
 						}	
 						Cur.dat[,dist.pl+icov]=rep(Cov.star,each=n.Observers[itrans])
 						X=get_mod_matrix(Cur.dat=Cur.dat,stacked.names,factor.ind,Det.formula,Levels)
 						ExpY=X%*%Par$det
 						L.star=L.old
 						for(i in 1:length(Cov.star)){
-							Sigma[offdiag]=i.binned*Par$cor*(cur.dist[i]-1)*dist.mult+(1-i.binned)*cur.dist[i]
-							L.star[i]=pmvnorm(upper=rep(0,n.Observers[itrans]),mean=ExpY[(i*n.Observers[itrans]-n.Observers[itrans]+1):(i*n.Observers[itrans])],sigma=Sigma)
+							Sigma[offdiag]=Par$cor*(i.binned*(cur.dist[i]-1)*dist.mult+(1-i.binned)*cur.dist[i])
+							L.star[i]=dmvnorm(Tmp.Y.tilde[(i*n.Observers[itrans]-n.Observers[itrans]+1):(i*n.Observers[itrans])],mean=ExpY[(i*n.Observers[itrans]-n.Observers[itrans]+1):(i*n.Observers[itrans])],sigma=Sigma)
 						}	
 						Acc=(runif(length(L.star))<(L.star/L.old))
 						Data[itrans,(G.obs[itrans]*n.Observers[itrans]+1):(G.transect[itrans]*n.Observers[itrans]),dist.pl+icov]=(1-rep(Acc,each=n.Observers[itrans]))*Data[itrans,(G.obs[itrans]*n.Observers[itrans]+1):(G.transect[itrans]*n.Observers[itrans]),dist.pl+icov]+rep(Acc,each=n.Observers[itrans])*rep(Cov.star,each=n.Observers[itrans])						
@@ -363,13 +384,96 @@
 			
 			
 			#update Y.tilde
-			EY1=Mu1+Cor*(Y.tilde[,2]-Mu2)
-			Y.tilde[,1] <- rtruncnorm(N, a=ifelse(Dat[,3]==0,-Inf,0), b=ifelse(Dat[,3]==0,0,Inf), EY1, sqrt(1-Cor^2))
-			EY2=Mu2+Cor*(Y.tilde[,1]-Mu1)
-			Y.tilde[,2] <- rtruncnorm(N, a=ifelse(Dat[,4]==0,-Inf,0), b=ifelse(Dat[,4]==0,0,Inf), EY2, sqrt(1-Cor^2))
+			Cur.dat=Data[itrans,1:n.Records[itrans],]
+			X=get_mod_matrix(Cur.dat=Cur.dat,stacked.names,factor.ind,Det.formula,Levels)
+			ExpY=matrix(X%*%Par$det,G.transect[itrans],n.Observers[itrans],byrow=TRUE)
+			Temp.Y.tilde=matrix(Y.tilde[1:n.Records[itrans],itrans],G.transect[itrans],n.Observers[itrans],byrow=TRUE)
+			Dist=matrix(Cur.dat[,dist.pl],G.transect[itrans],n.Observers[itrans],byrow=TRUE)
+			Cor=Par$cor*(i.binned*(Dist[,1]-1)*dist.mult+(1-i.binned)*Dist[,1])
+			Resp=matrix(Cur.dat[,2],G.transect[itrans],n.Observers[itrans],byrow=TRUE)
+			EY1=ExpY[,1]+Cor*(Temp.Y.tilde[,2]-ExpY[,2])
+			Temp.Y.tilde[,1] <- rtruncnorm(G.transect[itrans], a=ifelse(Resp[,1]==0,-Inf,0), b=ifelse(Resp[,1]==0,0,Inf), EY1, sqrt(1-Cor^2))
+			EY2=ExpY[,2]+Cor*(Temp.Y.tilde[,1]-ExpY[,1])
+			Temp.Y.tilde[,2] <- rtruncnorm(G.transect[itrans], a=ifelse(Resp[,2]==0,-Inf,0), b=ifelse(Resp[,2]==0,0,Inf), EY2, sqrt(1-Cor^2))
+			Y.tilde[1:n.Records[itrans],itrans]=as.vector(t(Temp.Y.tilde))
+		}
 
+		#update betas for detection process
+		# First, assemble stacked adjusted Response, X matrices across all transects; 
+		#basic form of response is Ytilde[obs1]-cor*Ytilde[obs2]
+		#adjusted DM rows are of form X[obs1]-cor*X[obs2]
+		Cur.dat=Data[1,1:n.Records[1],]
+		Dist=matrix(Cur.dat[,dist.pl],G.transect[1],n.Observers[1],byrow=TRUE)[,1]
+		X.temp=array(t(get_mod_matrix(Cur.dat=Cur.dat,stacked.names,factor.ind,Det.formula,Levels)),dim=c(n.beta.det,2,G.transect[1]))
+		if(n.Observers[1]==2){
+			Tmp.cor=Par$cor*(i.binned*(Dist-1)*dist.mult+(1-i.binned)*Dist)
+			Cor=rep(Tmp.cor,2)  #assemble vector of correlation parameters for each observation
+			X.beta=rbind(t(X.temp[,1,])-Tmp.cor*t(X.temp[,2,]),t(X.temp[,2,])-Tmp.cor*t(X.temp[,1,]))
+			Y.temp=matrix(Y.tilde[1:n.Records[1],1],G.transect[1],2,byrow=TRUE)
+			Y.beta=c(Y.temp[,1]-Tmp.cor*Y.temp[,2],Y.temp[,2]-Tmp.cor*Y.temp[,1])
+		}
+		else{
+			X.beta=t(X.temp[,1,])
+			Y.beta=Y.tilde[1:n.Records[1],1]
+			Cor=rep(1,n.Records[1])
+		}
+		for(itrans in 2:n.transects){
+			Cur.dat=Data[itrans,1:n.Records[itrans],]
+			Dist=matrix(Cur.dat[,dist.pl],G.transect[itrans],n.Observers[itrans],byrow=TRUE)[,1]
+			X.temp=array(t(get_mod_matrix(Cur.dat=Cur.dat,stacked.names,factor.ind,Det.formula,Levels)),dim=c(n.beta.det,2,G.transect[itrans]))
+			if(n.Observers[1]==2){
+				Tmp.cor=Par$cor*(i.binned*(Dist-1)*dist.mult+(1-i.binned)*Dist)
+				Cor=c(Cor,rep(Tmp.cor,2))  #assemble vector of correlation parameters for each observation
+				X.beta=rbind(X.beta,t(X.temp[,1,])-Tmp.cor*t(X.temp[,2,]),t(X.temp[,2,])-Tmp.cor*t(X.temp[,1,]))
+				Y.temp=matrix(Y.tilde[1:n.Records[itrans],itrans],G.transect[itrans],2,byrow=TRUE)
+				Y.beta=c(Y.beta,Y.temp[,1]-Tmp.cor*Y.temp[,2],Y.temp[,2]-Tmp.cor*Y.temp[,1])
+			}
+			else{
+				X.beta=rbind(X.beta,t(X.temp[,1,]))
+				Y.beta=c(Y.beta,Y.tilde[1:n.Records[itrans],1])
+				Cor=c(Cor,rep(1,n.Records[itrans]))
+			}
+		}
+		#now use basic matrix equations from Gelman '04 book (14.11 14.12) to update beta parms
+		Sig.inv=sqrt(1-Cor^2)  #for use in eq. 14.11, 14.12 of Gelman et al.; don't need a matrix since it would be diagonal
+		V.inv <- crossprod(X.beta,Sig.inv*X.beta) 	
+		M.z <- solve(V.inv, crossprod(X.beta,Sig.inv*Y.beta))
+		Par$det <- M.z + solve(chol(V.inv), rnorm(n.beta.det,0,1))
 
-
+		
+		#update correlation parameter for detection process (if applicable)
+		if(point.ind==1){
+		    cor.star=Par$cor+runif(1,-Control$MH.cor,Control$MH.cor)
+			if(cor.star>0 & cor.star<1){
+				I.gt.one=which(n.Observers>1)
+				n.gt.one=length(I.gt.one)
+				
+				Cur.dat=Data[I.gt.one[1],1:n.Records[I.gt.one[1]],]
+				Dist=matrix(Cur.dat[,dist.pl],G.transect[I.gt.one[1]],n.Observers[I.gt.one[1]],byrow=TRUE)[,1]
+				X.temp=array(t(get_mod_matrix(Cur.dat=Cur.dat,stacked.names,factor.ind,Det.formula,Levels)),dim=c(n.beta.det,2,G.transect[I.gt.one[1]]))
+				Y.temp=matrix(Y.tilde[1:n.Records[I.gt.one[1]],I.gt.one[1]],G.transect[I.gt.one[1]],2,byrow=TRUE)			
+				Delta1=Y.temp[,1]-(t(X.temp[,1,]) %*% Par$det)
+				Delta2=Y.temp[,2]-(t(X.temp[,2,]) %*% Par$det)
+				
+				if(n.gt.one>1){
+					for(itrans in 2:n.gt.one){
+						Cur.dat=Data[I.gt.one[itrans],1:n.Records[I.gt.one[itrans]],]
+						Dist=c(Dist,matrix(Cur.dat[,dist.pl],G.transect[I.gt.one[itrans]],n.Observers[I.gt.one[itrans]],byrow=TRUE)[,1])
+						X.temp=array(t(get_mod_matrix(Cur.dat=Cur.dat,stacked.names,factor.ind,Det.formula,Levels)),dim=c(n.beta.det,2,G.transect[I.gt.one[itrans]]))
+						Y.temp=matrix(Y.tilde[1:n.Records[I.gt.one[itrans]],I.gt.one[itrans]],G.transect[I.gt.one[itrans]],2,byrow=TRUE)			
+						Delta1=c(Delta1,Y.temp[,1]-(t(X.temp[,1,]) %*% Par$det))
+						Delta2=c(Delta2,Y.temp[,2]-(t(X.temp[,2,]) %*% Par$det))
+					}
+				}
+				Cor=Par$cor*(i.binned*(Dist-1)*dist.mult+(1-i.binned)*Dist)
+				logP.old=-.5*(sum(log(1-Cor^2))+sum((Delta1^2+Delta2^2-2*Cor*Delta1*Delta2)/(1-Cor^2)))
+				Cor=cor.star*(i.binned*(Dist-1)*dist.mult+(1-i.binned)*Dist)
+				logP.new=-.5*(sum(log(1-Cor^2))+sum((Delta1^2+Delta2^2-2*Cor*Delta1*Delta2)/(1-Cor^2)))
+				if(runif(1)<exp(logP.new-logP.old)){
+					Par$cor=cor.star
+					Accept$cor=Accept$cor+1
+				}				
+			}
 		}
 		
 		#store results if applicable
@@ -380,10 +484,6 @@
 			MCMC$Hab[iiter-Control$burnin,]=Par$hab
 			MCMC$Det[iiter-Control$burnin,]=Par$det
 		}
-		#update betas for detection process
-		
-		#update correlation parameter for detection process (if applicable)
-
 
 	}
 
