@@ -4,8 +4,8 @@ simulate_data<-function(S){
 	
 	#process parameters
 	lambda.grp=3
-	X.site=c(1:S)/S #covariate on abundance intensity
-	beta.site=100 
+	X.site=cbind(rep(1,S),log(c(1:S)/S)) #covariate on abundance intensity
+	Beta.site=c(log(100),1) 
 	
 	#detection parameters
 	n.bins=5 #n.bins=5 hardwired elsewhere
@@ -13,7 +13,7 @@ simulate_data<-function(S){
 	cor.par=0.5 #correlation in max age bin (linear from zero)
 	
 	
-	N=round(X.site*beta.site)
+	N=round(exp(X.site%*%Beta.site))
 	
 	Dat=matrix(0,sum(N),7)  #rows are site, observer 1 ID, obs 2 ID,  Y_1, Y_2, Distance, Group size
 	X=rep(0,length(Beta.det))

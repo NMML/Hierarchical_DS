@@ -1,5 +1,5 @@
 
-#hierarchical_DS<-function(Dat,Adj,Area.hab=1,Mapping,Area.trans,Bin.length,Hab.cov,n.obs.cov=0,Det.cov=NULL,pol.eff=c(1:2),point.ind=TRUE,Inits=NULL,grps=FALSE,M,Control,adapt=TRUE)
+#hierarchical_DS<-function(Dat,Adj,Area.hab=1,Mapping,Area.trans,Bin.length,Hab.cov,n.obs.cov=0,Det.cov=NULL,pol.eff=c(1:2),point.ind=TRUE,spat.ind=FALSE,Inits=NULL,grps=FALSE,M,Control,adapt=TRUE)
 	#Dat - matrix or data frame with the following columns
 		#1-transect ID
 		#2-match number  #currently, a maximum of 2 observers on each transect
@@ -30,6 +30,7 @@
 			#made to be biologically plausible (i.e., don't use 'vague' priors!)
 	#pol.eff - for continuous distance, which polynomial degrees to model (default is c(1:2); an intercept is always estimated when "Distance" is listed in "Det.formula")
 	#point.ind - estimate a correlation parameter for detection probability that's an increasing function of distance?
+	#spat.ind - if TRUE, assumes spatial independence (no spatial random effects on abundance intensity) default is FALSE
 	#grps - if FALSE, detections are assumed to all be of individual animals
 	#M - maximum possible value for number of groups present in any one transect (in practice just set high enough that values at M and above are never sampled during MCMC)
 	#			and can be fine tuned as needed
@@ -38,25 +39,38 @@
 		#"burnin" - number of MCMC burnin iterations
 		#"adapt" - if adapt==TRUE, this gives the number of additional MCMC iterations should be performed to adapt MCMC proposals to optimal ranges prior to final MCMC run 
 		#"MH.cor" - Metropolis-hastings tuning parameter for updating the correlation parameter (if point.ind==TRUE)
+		#"MH.dist" - MH tuning parameter for distances (if distance is continuous)
+		#"MH.nu" - MH tuning parameter for Nu parameters (Langevin-Hastings multivariate update)
+		#"MH.beta" - a vector of tuning parameters for betas of the abundance process (dimension = number of columns of habitat DM)
+		#"grp.mean" - expected group size - 1 ; used for prior & psedo-prior for RJMCMC updates
 		#"RJ.N" - A vector giving the maximum number of additions and deletions proposed in an iteration of the RJMCMC algorithm for each transect
 	#Inits - an (optional) list object providing initial values for model parameters
 		#"Beta.hab" - initial values for habitat linear predictor parameters
 		#"Beta.det" - initial values for detection model (includes distance, observer, env. variables, and individual covariates)
 		#"cor.par" - if point.ind==TRUE, this is an initial value for the correlation parameter (which must be in (0,1))	
+		#"Nu" - gives log(lambda) for each spatial strata
+		#"Eta" - if spat.ind==FALSE, spatial random effects; one for each strata 
+		#"tau.eta" - if spat.ind==FALSE, precision for spatial ICAR model  
+		#"tau.nu" - precision for Nu (overdispersion relative to the Poisson distribution)
 	#adapt - if adapt==TRUE, run an additional Control$adapt number of MCMC iterations to optimize MCMC proposal distributions prior to primary MCMC
 
 	####start by defining stuff directly (just for debugging...switch to outside function later)
 	require(mvtnorm)
+	require(Matrix)
 	source("z:/git/New folder/hierarchicalDS/R/simulate_data.R")
 	S=10 #number of sites (# transects=# habitat areas to start with)
 	Dat=simulate_data(S=S) 
 	n.bins=length(unique(Dat[,6]))
-	Adj=diag(S)
-	Area.hab=1
+	Adj=matrix(0,S,S)
+	for(i in 2:S){
+		Adj[i-1,i]=1
+		Adj[i,i-1]=1
+	}
+	Area.hab=rep(1,S)
 	Mapping=c(1:S)
 	Area.trans=rep(1,S)
 	Bin.length=rep(1,n.bins)
-	Hab.cov=data.frame(matrix(c(1:S)/S,S,1))
+	Hab.cov=data.frame(matrix(log(c(1:S)/S),S,1))
 	colnames(Hab.cov)="Cov1"
 	n.obs.cov=1  #dummy 'seat' variable
 	Hab.formula=~Cov1
@@ -66,11 +80,13 @@
 	colnames(Cov.prior.parms)="Group"
 	pol.eff=2 #not currently used since using distance bins
 	point.ind=TRUE
+	spat.ind=FALSE
 	grps=TRUE
 	M=200
-	Control=list(iter=15000,burnin=0,MH.cor=0.05,MH.dist=0.1,grp.mean=3,RJ.N=rep(5,S),adapt=1000)
-	Inits=list(hab=c(0,100),det=c(1.2,-.2,-.4,0,-.8,-1.4,-1.8,-2,.2),cor=0.5) #start at true values during debugging
+	Control=list(iter=15000,burnin=0,MH.cor=0.05,MH.dist=0.1,MH.nu=.01,MH.beta=c(.2,.4),grp.mean=3,RJ.N=rep(5,S),adapt=1000)
+	#Inits=list(hab=c(0,100),det=c(1.2,-.2,-.4,0,-.8,-1.4,-1.8,-2,.2),cor=0.5) #start at true values during debugging
 	#note, these differ from beta in simulate data because of the way DM is implemented to sim data
+	Inits=NULL
 
 	adapt=FALSE
 	
@@ -179,7 +195,7 @@
 		}
 		Stacked
 	}
-	Stacked=stack_data(Data,G.transect,n.transects,stacked.names,factor.ind) #a stacked form of data for updating beta parameters
+	Stacked=stack_data(Data,G.transect,n.transects,stacked.names,factor.ind) #a stacked form of detection data for updating beta parameters
 	
 	#determine levels for each factor variable to help in assembling compatible DMs for smaller datasets 
 	# (stored in list object named 'Levels')
@@ -211,20 +227,29 @@
 	}
 	
 	
-	generate_inits<-function(DM.hab,DM.det,G.transect,Area.trans,Area.hab,point.ind){
-		Par=list(det=rnorm(ncol(DM.det),0,1),hab=rep(0,ncol(DM.hab)),cor=ifelse(point.ind,runif(1,0,1),0))
+	generate_inits<-function(DM.hab,DM.det,G.transect,Area.trans,Area.hab,Mapping,point.ind,spat.ind,Control){		
+		Par=list(det=rnorm(ncol(DM.det),0,1),hab=rep(0,ncol(DM.hab)),cor=ifelse(point.ind,runif(1,0,1),0),
+				Nu=log(max(G.transect)/mean(Area.trans)*exp(rnorm(length(Area.hab)))),Eta=rnorm(length(Area.hab)),
+				tau.eta=runif(1,0.5,2),tau.nu=runif(1,0.5,2))
 		Par$hab[1]=mean(G.transect)/(mean(Area.trans)*mean(Area.hab))*exp(rnorm(1,0,1))
+		Par$G=exp(Par$Nu)*Area.hab*exp(rnorm(length(Par$Nu)))
+		Par$N=Par$G+rpois(length(Par$G),Control$grp.mean*Par$G)
+		if(spat.ind==1)Par$Eta=0*Par$Eta
 		Par
 	}
 	
+	
 	Par=Inits
-	if(is.null(Inits)==TRUE)Par=generate_inits(DM.hab,DM.det,G.transect,Area.trans,Area.hab,point.ind)	
-			
+	if(is.null(Inits)==TRUE)Par=generate_inits(DM.hab,DM.det,G.transect,Area.trans,Area.hab,Mapping=Mapping,point.ind=point.ind,spat.ind=spat.ind,Control=Control)	
+	#start out at true value for now
+	Par$hab=c(log(100),1)
+	Par$Nu=DM.hab%*%Par$hab
+	
 	mcmc.length=Control$iter-Control$burnin
-	MCMC=list(N=rep(0,mcmc.length),G=matrix(0,mcmc.length,S),Hab=data.frame(matrix(0,mcmc.length,length(Par$hab))),Det=data.frame(matrix(0,mcmc.length,length(Par$det))),cor.par=rep(0,mcmc.length))
+	MCMC=list(N.tot=rep(0,mcmc.length),N=matrix(0,mcmc.length,S),G=matrix(0,mcmc.length,S),Hab=data.frame(matrix(0,mcmc.length,length(Par$hab))),Det=data.frame(matrix(0,mcmc.length,length(Par$det))),cor.par=rep(0,mcmc.length),tau.eta=rep(0,mcmc.length),tau.nu=rep(0,mcmc.length))
 	colnames(MCMC$Hab)=colnames(DM.hab)
 	colnames(MCMC$Det)=colnames(DM.det)
-	Accept=list(cor=0,N=rep(0,n.transects))
+	Accept=list(cor=0,N=rep(0,n.transects),Nu=0,Hab=rep(0,length(Par$hab)))
 	
 	dist.pl=3+n.obs.cov
 	if(i.binned==0)dist.mult=1
@@ -238,16 +263,95 @@
 		Y.tilde[,itrans]=rtruncnorm(M, a=ifelse(Data[itrans,,2]==0,-Inf,0), b=ifelse(Data[itrans,,2]==0,0,Inf), ExpY, 1)		
 	}
 	
+	Lam.index=c(1:S)
+	log_lambda_gradient<-function(index,Mu,Nu,N,var.nu){
+		return(-(Nu[index]-Mu[index])/var.nu+N[index]-exp(Nu[index]))
+	}
+	i.Covered=c(1:S)%in%Mapping
+	Covered.area=rep(0,S)
+	for(i in 1:S){
+		if(i.Covered[i]==1){
+			Covered.area[i]=sum(Area.trans[which(Mapping==i)])
+		}
+	}
+	log_lambda_log_likelihood<-function(Log.lambda,DM,Beta,Eta=0,SD,N){
+		Pred.log.lam=DM%*%Beta+Eta	
+		logL=sum(dnorm(Log.lambda,Pred.log.lam,SD,log=1)) #year 1
+		logL=logL+sum(N*Log.lambda-exp(Log.lambda))
+		return(logL)
+	} 	
 	
+	Q=-Adj
+	diag(Q)=apply(Adj,2,'sum')
+	Q=Matrix(Q)
+	
+	Prior.pars=list(a.eta=.01,b.eta=.01,a.nu=.01,b.nu=.01,beta.sd=c(10000,100))
+	
+	##################################################
+	############   MCMC Algorithm ####################
+	##################################################
 	for(iiter in 1:Control$iter){
 		#if((iiter%%1000)==1)cat(paste('\n ', iiter))
 		cat(paste('\n ', iiter))
 		
-		### update abundance parameters at the strata scale
+		########## update abundance parameters at the strata scale   ################
 		
-		Lambda=DM.hab%*%Par$hab  #keep these at expected values for the moment
+		#update nu parameters (log lambda)
+		Mu=DM.hab%*%Par$hab+Par$Eta
+		Grad1=sapply(Lam.index,'log_lambda_gradient',Mu=Mu,Nu=Par$Nu,N=Par$G,var.nu=1/Par$tau.nu)
+		Prop=Par$Nu+Control$MH.nu^2*0.5*Grad1+Control$MH.nu*rnorm(S)
+		new.post=log_lambda_log_likelihood(Log.lambda=Prop,DM=DM.hab,Beta=Par$hab,SD=sqrt(1/Par$tau.nu),N=Par$G)
+		old.post=log_lambda_log_likelihood(Log.lambda=Par$Nu,DM=DM.hab,Beta=Par$hab,SD=sqrt(1/Par$tau.nu),N=Par$G)
+		Grad2=sapply(Lam.index,'log_lambda_gradient',Mu=Mu,Nu=Prop,N=Par$G,var.nu=1/Par$tau.nu)
+		diff1=as.vector(Par$Nu-Prop-0.5*Control$MH.nu^2*Grad2)	
+		diff2=as.vector(Prop-Par$Nu-0.5*Control$MH.nu^2*Grad1)
+		log.jump=0.5/Control$MH.nu^2*(sqrt(crossprod(diff1,diff1))-sqrt(crossprod(diff2,diff2))) #ratio of jumping distributions using e.g. Robert and Casella 2004 p. 319	
+		if(runif(1)<exp(new.post-old.post+log.jump)){
+			Par$Nu=Prop
+			Accept$Nu=Accept$Nu+1	
+		}
+	
+		if(spat.ind==0){
+			#update eta parameters (spatial random effects)
+			V.eta.inv <- Par$tau.nu*diag(S) + Par$tau.eta*Q
+			M.eta <- solve(V.eta.inv, Par$tau.nu*(Par$Nu-DM.hab%*%Par$hab))		
+			Par$Eta<-as.vector(M.eta+solve(chol(V.eta.inv),rnorm(S,0,1)))
+			Par$Eta=Par$Eta-mean(Par$Eta)  #centering
 		
-		### update abundance, distances, ind. covariates using RJMCMC
+			#update tau_eta  (precision of spatial process)
+			Par$tau.eta <- rgamma(1, (S-1)/2 + Prior.pars$a.eta, as.numeric(crossprod(Par$Eta, Q %*% Par$Eta)/2) + Prior.pars$b.eta)
+		}
+			
+		#update tau_nu	 (precision for Poisson overdispersion)
+		Mu=DM.hab%*%Par$hab+Par$Eta
+		Diff=Par$Nu-Mu
+		Par$tau.nu <- rgamma(1,S/2 + Prior.pars$a.nu, as.numeric(crossprod(Diff,Diff))/2 + Prior.pars$b.nu)
+
+	
+		#translate to lambda scale
+		Lambda=Area.hab*exp(Par$Nu)
+		Lambda.trans=Lambda[Mapping]
+				
+		#update Betas for habitat relationships
+		for(ipar in 1:length(Par$hab)){
+			Prop=Par$hab
+			Prop[ipar]=Par$hab[ipar]+Control$MH.beta[ipar]*rnorm(1,0,1)
+			old.post=sum(dnorm(Par$Nu,Mu,sqrt(1/Par$tau.nu),log=1))+sum(dnorm(Par$hab,0,Prior.pars$beta.sd,log=1))
+			Mu=DM.hab%*%Prop+Par$Eta			
+			new.post=sum(dnorm(Par$Nu,Mu,sqrt(1/Par$tau.nu),log=1))+sum(dnorm(Prop,0,Prior.pars$beta.sd,log=1))
+			if(runif(1)<exp(new.post-old.post)){
+				Par$hab[ipar]=Prop[ipar]
+				Accept$Hab[ipar]=Accept$Hab[ipar]+1
+			}
+		}
+		
+		########## update group abundance at strata level
+		Par$G=rpois(S,Lambda*(1-Covered.area))
+		Par$N=Par$G+rpois(S,Control$grp.mean*Par$G) #add the Par$G since number in group > 0 
+		Par$G[Mapping]=Par$G[Mapping]+G.transect
+		Par$N[Mapping]=Par$N[Mapping]+N.transect
+		
+		########## update abundance, distances, ind. covariates for observed transects using RJMCMC  #############
 		for(itrans in 1:n.transects){
 			Sample=c(-Control$RJ.N[itrans]:Control$RJ.N[itrans])
 			Sample=Sample[-(Control$RJ.N[itrans]+1)] #don't make proposals where pop size stays the same
@@ -271,7 +375,7 @@
 					for(i in 1:a){
 						tmp.sum=tmp.sum-log(G.transect[itrans]-G.obs[itrans]+i)+log(P[i])
 					}
-					MH.prob=exp(a*log(Lambda[itrans]*Area.trans[itrans])+tmp.sum)
+					MH.prob=exp(a*log(Lambda.trans[itrans]*Area.trans[itrans])+tmp.sum)
 					if(runif(1)<MH.prob){
 						G.transect[itrans]=G.transect[itrans]+a
 						n.Records[itrans]=G.transect[itrans]*n.Observers[itrans]
@@ -304,7 +408,7 @@
 					for(i in 1:-a){
 						tmp.sum=tmp.sum+log(G.transect[itrans]-G.obs[itrans]-i+1)-log(P[i])
 					}
-					MH.prob=exp(a*log(Lambda[itrans]*Area.trans[itrans])+tmp.sum)
+					MH.prob=exp(a*log(Lambda.trans[itrans]*Area.trans[itrans])+tmp.sum)
 					if(runif(1)<MH.prob){
 						G.transect[itrans]=G.transect[itrans]+a
 						n.Records[itrans]=G.transect[itrans]*n.Observers[itrans]
@@ -398,7 +502,7 @@
 			Y.tilde[1:n.Records[itrans],itrans]=as.vector(t(Temp.Y.tilde))
 		}
 
-		#update betas for detection process
+		###############       update detection process parameters       ##############
 		# First, assemble stacked adjusted Response, X matrices across all transects; 
 		#basic form of response is Ytilde[obs1]-cor*Ytilde[obs2]
 		#adjusted DM rows are of form X[obs1]-cor*X[obs2]
@@ -478,11 +582,15 @@
 		
 		#store results if applicable
 		if(iiter>Control$burnin){
-			MCMC$G[iiter-Control$burnin,]=G.transect
-			MCMC$N[iiter-Control$burnin]=sum(N.transect)
+			MCMC$G[iiter-Control$burnin,]=Par$G
+			MCMC$N[iiter-Control$burnin,]=Par$N
+			MCMC$N.tot[iiter-Control$burnin]=sum(Par$N)
 			MCMC$cor[iiter-Control$burnin]=Par$cor
 			MCMC$Hab[iiter-Control$burnin,]=Par$hab
 			MCMC$Det[iiter-Control$burnin,]=Par$det
+			MCMC$tau.eta[iiter-Control$burnin]=Par$tau.eta
+			MCMC$tau.nu[iiter-Control$burnin]=Par$tau.nu
+			
 		}
 
 	}
