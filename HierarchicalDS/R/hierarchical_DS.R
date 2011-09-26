@@ -59,7 +59,7 @@
 #' 	\item{MCMC}{A list object containing posterior samples}
 #'  \item{Accept}{A list object indicating the number of proposals that were accepted for parameters updated via Metropolis- or Langevin-Hastings algorithms}
 #'  \item{Control}{A list object giving MCMC tuning parameters (which are updated if the 'adapt' alorithm is used)}
-#' #' @export
+#' @export
 #' @import Matrix
 #' @keywords areal model, data augmentation, distance sampling, mcmc, reversible jump
 #' @author Paul B. Conn
