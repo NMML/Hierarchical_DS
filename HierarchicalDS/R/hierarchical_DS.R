@@ -83,7 +83,7 @@
 	spat.ind=FALSE
 	grps=TRUE
 	M=200
-	Control=list(iter=15000,burnin=0,MH.cor=0.05,MH.dist=0.1,MH.nu=.01,MH.beta=c(.2,.4),grp.mean=3,RJ.N=rep(5,S),adapt=1000)
+	Control=list(iter=15000,burnin=0,MH.pi=0.05,MH.dist=0.1,MH.nu=.01,MH.beta=c(.2,.4),grp.mean=3,RJ.N=rep(5,S),adapt=1000)
 	#Inits=list(hab=c(0,100),det=c(1.2,-.2,-.4,0,-.8,-1.4,-1.8,-2,.2),cor=0.5) #start at true values during debugging
 	#note, these differ from beta in simulate data because of the way DM is implemented to sim data
 	Inits=NULL
@@ -228,7 +228,7 @@
 	
 	
 	generate_inits<-function(DM.hab,DM.det,G.transect,Area.trans,Area.hab,Mapping,point.ind,spat.ind,Control){		
-		Par=list(det=rnorm(ncol(DM.det),0,1),hab=rep(0,ncol(DM.hab)),cor=ifelse(point.ind,runif(1,0,1),0),
+		Par=list(det=rnorm(ncol(DM.det),0,1),hab=rep(0,ncol(DM.hab)),pi.par=ifelse(point.ind,runif(1,0,1),0),
 				Nu=log(max(G.transect)/mean(Area.trans)*exp(rnorm(length(Area.hab)))),Eta=rnorm(length(Area.hab)),
 				tau.eta=runif(1,0.5,2),tau.nu=runif(1,0.5,2))
 		Par$hab[1]=mean(G.transect)/(mean(Area.trans)*mean(Area.hab))*exp(rnorm(1,0,1))
@@ -244,22 +244,47 @@
 	#start out at true value for now
 	Par$hab=c(log(100),1)
 	Par$Nu=DM.hab%*%Par$hab
-	
+		
 	mcmc.length=Control$iter-Control$burnin
 	MCMC=list(N.tot=rep(0,mcmc.length),N=matrix(0,mcmc.length,S),G=matrix(0,mcmc.length,S),Hab=data.frame(matrix(0,mcmc.length,length(Par$hab))),Det=data.frame(matrix(0,mcmc.length,length(Par$det))),cor.par=rep(0,mcmc.length),tau.eta=rep(0,mcmc.length),tau.nu=rep(0,mcmc.length))
 	colnames(MCMC$Hab)=colnames(DM.hab)
 	colnames(MCMC$Det)=colnames(DM.det)
-	Accept=list(cor=0,N=rep(0,n.transects),Nu=0,Hab=rep(0,length(Par$hab)))
+	Accept=list(pi=0,N=rep(0,n.transects),Nu=0,Hab=rep(0,length(Par$hab)))
 	
 	dist.pl=3+n.obs.cov
-	if(i.binned==0)dist.mult=1
-	if(i.binned==1)dist.mult=1/(n.bins-1)
-	
-	#initialize Y.tilde (pretends correlation between observations is zero)
+
+	#setup matrices for inividual random effects
+	RE.1obs=matrix(0,M,length(which(n.Observers==1)))		#holds random effects parameters for surveys with one observer
+	RE.2obs=matrix(0,M/2,length(which(n.Observers==2)))		#holds random effects parameters for surveys with two observers
+	pl1=1
+	pl2=1
+	RE.col.index=n.Observers
+	for(i in 1:n.transects){
+		if(n.Observers[i]==1){
+			RE.col.index[i]=pl1
+			pl1=pl1+1
+		}
+		else{
+			RE.col.index[i]=pl2
+			pl2=pl2+1
+		}
+	}
+	X.re=Matrix(0,M,M/2)
+	for(i in 1:(M/2)){
+		X.re[i*2-1,i]=1
+		X.re[i*2,i]=1
+	}
+	t.X.re=t(X.re)
+	V.eps.inv=crossprod(X.re,X.re)
+	Chol.eps.inv=chol(V.eps.inv)
+	PI.RE=matrix(0,M,n.transects)		#holds random effects for each observation
+		
+		
+	#initialize Y.tilde 
     Y.tilde=matrix(0,M,n.transects)
 	for(itrans in 1:n.transects){
 		X=get_mod_matrix(Cur.dat=Data[itrans,,],stacked.names,factor.ind,Det.formula,Levels)
-		ExpY=X%*%Par$det
+		ExpY=X%*%Par$det+PI.RE[,itrans]
 		Y.tilde[,itrans]=rtruncnorm(M, a=ifelse(Data[itrans,,2]==0,-Inf,0), b=ifelse(Data[itrans,,2]==0,0,Inf), ExpY, 1)		
 	}
 	
@@ -285,7 +310,10 @@
 	diag(Q)=apply(Adj,2,'sum')
 	Q=Matrix(Q)
 	
-	Prior.pars=list(a.eta=.01,b.eta=.01,a.nu=.01,b.nu=.01,beta.sd=c(10000,100))
+	Prior.pars=list(a.eta=.01,b.eta=.01,a.nu=.01,b.nu=.01,beta.sd=c(10000,100),sig.pi=10)
+	
+	cat("\nBeginning MCMC routine ...\n")
+	st <- Sys.time()
 	
 	##################################################
 	############   MCMC Algorithm ####################
@@ -356,25 +384,15 @@
 			Sample=c(-Control$RJ.N[itrans]:Control$RJ.N[itrans])
 			Sample=Sample[-(Control$RJ.N[itrans]+1)] #don't make proposals where pop size stays the same
 			a=sample(Sample,1)
-			Sigma=matrix(Par$cor,n.Observers[itrans],n.Observers[itrans])
-			diag(Sigma)=1
-			offdiag=which(Sigma!=1)
 			
 			if(a>0){ # proposal an addition
 				if(((G.transect[itrans]+a)*n.Observers[itrans])>M)cat('\n Error: proposed abundance > M; increase M value! \n')
 				else{
 					Cur.dat=Data[itrans,(n.Records[itrans]+1):(n.Records[itrans]+a*n.Observers[itrans]),]
 					X=get_mod_matrix(Cur.dat=Cur.dat,stacked.names,factor.ind,Det.formula,Levels)
-					ExpY=X%*%Par$det
-					P=c(1:a)
-					for(i in 1:a){
-						Sigma[offdiag]=Par$cor*(i.binned*(Cur.dat[i*n.Observers[itrans],dist.pl]-1)*dist.mult+(1-i.binned)*Cur.dat[i*n.Observers[itrans],dist.pl])
-						P[i]=pmvnorm(upper=c(0,0),mean=ExpY[(i*n.Observers[itrans]-n.Observers[itrans]+1):(i*n.Observers[itrans])],sigma=Sigma)
-					}
-					tmp.sum=0
-					for(i in 1:a){
-						tmp.sum=tmp.sum-log(G.transect[itrans]-G.obs[itrans]+i)+log(P[i])
-					}
+					ExpY=X%*%Par$det+PI.RE[(n.Records[itrans]+1):(n.Records[itrans]+a*n.Observers[itrans]),itrans]
+					P=pnorm(0,mean=ExpY)
+					tmp.sum=-sum(log(G.transect[itrans]-G.obs[itrans]+c(1:a)))+sum(log(P))
 					MH.prob=exp(a*log(Lambda.trans[itrans]*Area.trans[itrans])+tmp.sum)
 					if(runif(1)<MH.prob){
 						G.transect[itrans]=G.transect[itrans]+a
@@ -383,14 +401,7 @@
 						else N.transect[itrans]=sum(Data[itrans,1:n.Records[itrans],which(stacked.names=="Group")])/n.Observers[itrans]
 						Accept$N[itrans]=Accept$N[itrans]+1
 						#generate Y-tilde values
-						Tmp=matrix(ExpY,a,n.Observers[itrans],byrow=TRUE)
-						Y.tilde.temp=rtruncnorm(n=a,a=-Inf,b=0,mean=Tmp[,1],sd=1)
-						if(n.Observers[itrans]>1){
-							Dist=matrix(Cur.dat[,dist.pl],a,n.Observers[itrans],byrow=TRUE)
-							Cor=Par$cor*(i.binned*(Dist[,1]-1)*dist.mult+(1-i.binned)*Dist[,1])
-							Y.tilde.temp=cbind(Y.tilde.temp,rtruncnorm(n=a,a=-Inf,b=0,mean=Tmp[,2]+Cor*(Y.tilde.temp-Tmp[,2]),sd=sqrt(1-Cor^2)))
-						}
-						Y.tilde[(n.Records[itrans]-a*n.Observers[itrans]+1):n.Records[itrans],itrans]=as.vector(t(Y.tilde.temp))
+						Y.tilde[(n.Records[itrans]-a*n.Observers[itrans]+1):n.Records[itrans],itrans]=rtruncnorm(n=a*n.Observers[itrans],a=-Inf,b=0,mean=ExpY,sd=1)
 					}	
 				}
 			}
@@ -398,16 +409,9 @@
 				if((G.transect[itrans]+a)>=G.obs[itrans]){ #can only delete records where an animal isn't observed
 					Cur.dat=Data[itrans,n.Records[itrans]:(n.Records[itrans]+a*n.Observers[itrans]+1),]
 					X=get_mod_matrix(Cur.dat=Cur.dat,stacked.names,factor.ind,Det.formula,Levels)
-					ExpY=X%*%Par$det
-					P=c(1:-a)
-					for(i in 1:-a){
-						Sigma[offdiag]=Par$cor*(i.binned*(Cur.dat[i*n.Observers[itrans],dist.pl]-1)*dist.mult+(1-i.binned)*Cur.dat[i*n.Observers[itrans],dist.pl])
-						P[i]=pmvnorm(upper=rep(0,n.Observers[itrans]),mean=ExpY[(i*n.Observers[itrans]-n.Observers[itrans]+1):(i*n.Observers[itrans])],sigma=Sigma)
-					}
-					tmp.sum=0
-					for(i in 1:-a){
-						tmp.sum=tmp.sum+log(G.transect[itrans]-G.obs[itrans]-i+1)-log(P[i])
-					}
+					ExpY=X%*%Par$det+PI.RE[n.Records[itrans]:(n.Records[itrans]+a*n.Observers[itrans]+1),itrans]
+					P=pnorm(0,mean=ExpY)
+					tmp.sum=sum(log(G.transect[itrans]-G.obs[itrans]-c(1:-a)+1))-sum(log(P))
 					MH.prob=exp(a*log(Lambda.trans[itrans]*Area.trans[itrans])+tmp.sum)
 					if(runif(1)<MH.prob){
 						G.transect[itrans]=G.transect[itrans]+a
@@ -420,41 +424,33 @@
 			
 			#update distances, individual covariates for latent animals not currently in the population
 			#fill distances for unobserved
-			if(i.binned==1)Data[itrans,(n.Records[itrans]+1):M,dist.pl]=rep(sample(c(1:n.bins),size=(M-n.Records[itrans])/n.Observers[itrans],replace=TRUE,prob=Bin.length),each=n.Observers[itrans])
-			else Data[itrans,(n.Records[itrans]+1):M,dist.pl]=rep(runif((M-n.Records[itrans])/n.Observers[itrans]),each=n.Observers[itrans])
-			#fill individual covariate values for (potential) animals that weren't observed
+			cur.n=(M-n.Records[itrans])/n.Observers[itrans]
+			if(i.binned==1)Data[itrans,(n.Records[itrans]+1):M,dist.pl]=rep(sample(c(1:n.bins),size=cur.n,replace=TRUE,prob=Bin.length),each=n.Observers[itrans])
+			else Data[itrans,(n.Records[itrans]+1):M,dist.pl]=rep(runif(cur.n),each=n.Observers[itrans])
+			#fill individual covariate values for animals not in the population
 			if(n.ind.cov>0){
 				for(icov in 1:n.ind.cov){
-					rsamp=switch_sample(n=(M-n.Records[itrans])/n.Observers[itrans],pdf=Cov.prior.pdf[icov],cur.par=Cov.prior.parms[,icov])
+					rsamp=switch_sample(n=cur.n,pdf=Cov.prior.pdf[icov],cur.par=Cov.prior.parms[,icov])
 					Data[itrans,(n.Records[itrans]+1):M,dist.pl+icov]=rep(rsamp,each=n.Observers[itrans])
 				}
 			}
 			
 			#update distances, individual covariates for animals that ARE in the population but never observed
 			cur.G=G.transect[itrans]-G.obs[itrans]
-			if(G.transect[itrans]>G.obs[itrans]){
-				#distance
+			if(cur.G>0){
+				#distance 
 				if(i.binned==1)dist.star=sample(c(1:n.bins),cur.G,replace=TRUE)
 				else dist.star=runif(cur.G)
 				Cur.dat=Data[itrans,(G.obs[itrans]*n.Observers[itrans]+1):(G.transect[itrans]*n.Observers[itrans]),]
-				cur.dist=Cur.dat[,dist.pl]
 				X=get_mod_matrix(Cur.dat=Cur.dat,stacked.names,factor.ind,Det.formula,Levels)
-				ExpY=X%*%Par$det
-				L.old=c(1:length(dist.star))
+				ExpY=X%*%Par$det+PI.RE[(G.obs[itrans]*n.Observers[itrans]+1):(G.transect[itrans]*n.Observers[itrans]),itrans]
 				Tmp.Y.tilde=Y.tilde[(G.obs[itrans]*n.Observers[itrans]+1):(G.transect[itrans]*n.Observers[itrans]),itrans]
-				for(i in 1:length(dist.star)){
-					Sigma[offdiag]=Par$cor*(i.binned*(cur.dist[i]-1)*dist.mult+(1-i.binned)*cur.dist[i])
-					L.old[i]=dmvnorm(Tmp.Y.tilde[(i*n.Observers[itrans]-n.Observers[itrans]+1):(i*n.Observers[itrans])],mean=ExpY[(i*n.Observers[itrans]-n.Observers[itrans]+1):(i*n.Observers[itrans])],sigma=Sigma)
-				}	
+				L.old=matrix(dnorm(Tmp.Y.tilde,mean=ExpY,log=1),cur.G,n.Observers[itrans])
 				Cur.dat[,dist.pl]=rep(dist.star,each=n.Observers[itrans])
 				X=get_mod_matrix(Cur.dat=Cur.dat,stacked.names,factor.ind,Det.formula,Levels)
-				ExpY=X%*%Par$det
-				L.star=L.old
-				for(i in 1:length(dist.star)){
-					Sigma[offdiag]=Par$cor*(i.binned*(dist.star[i]-1)*dist.mult+(1-i.binned)*dist.star[i])
-					L.star[i]=dmvnorm(Tmp.Y.tilde[(i*n.Observers[itrans]-n.Observers[itrans]+1):(i*n.Observers[itrans])],mean=ExpY[(i*n.Observers[itrans]-n.Observers[itrans]+1):(i*n.Observers[itrans])],sigma=Sigma)
-				}	
-				Acc=(runif(length(L.star))<(L.star/L.old))
+				ExpY=X%*%Par$det+PI.RE[(G.obs[itrans]*n.Observers[itrans]+1):(G.transect[itrans]*n.Observers[itrans]),itrans]
+				L.star=matrix(dnorm(Tmp.Y.tilde,mean=ExpY,log=1),cur.G,n.Observers[itrans])
+				Acc=(runif(cur.G)<(apply(L.star,1,'sum')-apply(L.old,1,'sum')))
 				Data[itrans,(G.obs[itrans]*n.Observers[itrans]+1):(G.transect[itrans]*n.Observers[itrans]),dist.pl]=(1-rep(Acc,each=n.Observers[itrans]))*Data[itrans,(G.obs[itrans]*n.Observers[itrans]+1):(G.transect[itrans]*n.Observers[itrans]),dist.pl]+rep(Acc,each=n.Observers[itrans])*rep(dist.star,each=n.Observers[itrans])
 					
 				#individual covariates
@@ -462,25 +458,59 @@
 					for(icov in 1:n.ind.cov){
 						Cov.star=switch_sample(n=cur.G,pdf=Cov.prior.pdf[icov],cur.par=Cov.prior.parms[,icov])
 						Cur.dat=Data[itrans,(G.obs[itrans]*n.Observers[itrans]+1):(G.transect[itrans]*n.Observers[itrans]),]
-						cur.dist=Cur.dat[,dist.pl]
 						X=get_mod_matrix(Cur.dat=Cur.dat,stacked.names,factor.ind,Det.formula,Levels)
-						ExpY=X%*%Par$det
-						L.old=c(1:length(Cov.star))
-						for(i in 1:length(Cov.star)){
-							Sigma[offdiag]=Par$cor*(i.binned*(cur.dist[i]-1)*dist.mult+(1-i.binned)*cur.dist[i])
-							L.old[i]=dmvnorm(Tmp.Y.tilde[(i*n.Observers[itrans]-n.Observers[itrans]+1):(i*n.Observers[itrans])],mean=ExpY[(i*n.Observers[itrans]-n.Observers[itrans]+1):(i*n.Observers[itrans])],sigma=Sigma)
-						}	
+						ExpY=X%*%Par$det+PI.RE[(G.obs[itrans]*n.Observers[itrans]+1):(G.transect[itrans]*n.Observers[itrans]),itrans]
+						L.old=matrix(dnorm(Tmp.Y.tilde,mean=ExpY,log=1),cur.G,n.Observers[itrans])	
 						Cur.dat[,dist.pl+icov]=rep(Cov.star,each=n.Observers[itrans])
 						X=get_mod_matrix(Cur.dat=Cur.dat,stacked.names,factor.ind,Det.formula,Levels)
-						ExpY=X%*%Par$det
-						L.star=L.old
-						for(i in 1:length(Cov.star)){
-							Sigma[offdiag]=Par$cor*(i.binned*(cur.dist[i]-1)*dist.mult+(1-i.binned)*cur.dist[i])
-							L.star[i]=dmvnorm(Tmp.Y.tilde[(i*n.Observers[itrans]-n.Observers[itrans]+1):(i*n.Observers[itrans])],mean=ExpY[(i*n.Observers[itrans]-n.Observers[itrans]+1):(i*n.Observers[itrans])],sigma=Sigma)
-						}	
-						Acc=(runif(length(L.star))<(L.star/L.old))
+						ExpY=X%*%Par$det+PI.RE[(G.obs[itrans]*n.Observers[itrans]+1):(G.transect[itrans]*n.Observers[itrans]),itrans]
+						L.star=matrix(dnorm(Tmp.Y.tilde,mean=ExpY,log=1),cur.G,n.Observers[itrans])						
+						Acc=(runif(cur.G)<(apply(L.star,1,'sum')-apply(L.old,1,'sum')))
 						Data[itrans,(G.obs[itrans]*n.Observers[itrans]+1):(G.transect[itrans]*n.Observers[itrans]),dist.pl+icov]=(1-rep(Acc,each=n.Observers[itrans]))*Data[itrans,(G.obs[itrans]*n.Observers[itrans]+1):(G.transect[itrans]*n.Observers[itrans]),dist.pl+icov]+rep(Acc,each=n.Observers[itrans])*rep(Cov.star,each=n.Observers[itrans])						
 					}
+				}
+				
+				#individual random effects (all M/n.observers for given transect) 
+				if(point.ind==0)PI.RE[,itrans]=0
+				else{
+					Cur.distance=matrix(Data[itrans,,dist.pl],M/n.Observers[itrans],n.Observers[itrans])[,1]
+					if(i.binned==1)Cur.distance=Cur.distance-1
+					which.gt.0=which(Cur.distance>0)		#random effects for distance=0 are 0 by definition
+					Cur.distance=Cur.distance[which.gt.0]
+					X=get_mod_matrix(Cur.dat=Data[itrans,which.gt.0,],stacked.names,factor.ind,Det.formula,Levels)
+					ExpY=X%*%Par$det
+					Y=c(Y.tilde[which.gt.0,itrans]-ExpY,rep(0,length(which.gt.0)))  #treating priors as extra data points as in Gelman eq. 14.25
+					if(n.Observers[itrans]==1){
+						I.mat=diag(length(which.gt.0))
+						X=rbind(I.mat,I.mat)
+						Sig=bdiag(I.mat,diag((Par$pi.par*Cur.distance)^2))
+						V.inv=crossprod(X,solve(Sig,X))
+						M.eps<-solve(V.inv,crossprod(X,solve(Sig,Y)))
+						RE.1obs[which.gt.0,RE.col.index[itrans]]=as.vector(M.eps+solve(chol(V.inv),rnorm(length(which.gt.0),0,1)))
+						RE.1obs[which(Cur.distance==0),RE.col.index[itrans]]=0
+						PI.RE[,itrans]=RE.1obs
+					}					
+					else{
+						I.mat=diag(length(which.gt.0))
+						X=rbind(I.mat,I.mat)
+						Sig=bdiag(I.mat,diag((Par$pi.par*Cur.distance)^2))
+						V.inv=crossprod(X,solve(Sig,X))
+						M.eps<-solve(V.inv,crossprod(X,solve(Sig,Y)))
+						RE.2obs[which.gt.0,RE.col.index[itrans]]=as.vector(M.eps+solve(chol(V.inv),rnorm(length(which.gt.0),0,1)))
+						RE.2obs[which(Cur.distance==0),RE.col.index[itrans]]=0
+						PI.RE[,itrans]=as.vector(X.re%*%RE.2obs[,itrans])
+					}	
+					#refill random effects for animals not in the population (doesn't matter what Y tilde is)
+					Cur.distance=matrix(Data[itrans,(n.Records[itrans]+1):M,dist.pl],cur.n,n.Observers[itrans])[,1]
+					if(i.binned==1)Cur.distance=Cur.distance-1
+					if(n.Observers[itrans]==1){
+						RE.1obs[(n.Records[itrans]+1):M,RE.col.index[itrans]]=rnorm(cur.n,0,Par$pi.par*Cur.distance)
+						PI.RE[,itrans]=RE.1obs[,RE.col.index[itrans]]
+					}
+					else{
+						RE.2obs[(G.transect[itrans]+1):(M/2)]=rnorm(cur.n,0,Par$pi.par*Cur.distance)
+						PI.RE[,itrans]=as.vector(X.re%*%RE.2obs[,RE.col.index[itrans]])
+					}	
 				}
 			}
 			if(grps==FALSE)N.transect[itrans]=G.transect[itrans]
@@ -490,93 +520,51 @@
 			#update Y.tilde
 			Cur.dat=Data[itrans,1:n.Records[itrans],]
 			X=get_mod_matrix(Cur.dat=Cur.dat,stacked.names,factor.ind,Det.formula,Levels)
-			ExpY=matrix(X%*%Par$det,G.transect[itrans],n.Observers[itrans],byrow=TRUE)
-			Temp.Y.tilde=matrix(Y.tilde[1:n.Records[itrans],itrans],G.transect[itrans],n.Observers[itrans],byrow=TRUE)
-			Dist=matrix(Cur.dat[,dist.pl],G.transect[itrans],n.Observers[itrans],byrow=TRUE)
-			Cor=Par$cor*(i.binned*(Dist[,1]-1)*dist.mult+(1-i.binned)*Dist[,1])
-			Resp=matrix(Cur.dat[,2],G.transect[itrans],n.Observers[itrans],byrow=TRUE)
-			EY1=ExpY[,1]+Cor*(Temp.Y.tilde[,2]-ExpY[,2])
-			Temp.Y.tilde[,1] <- rtruncnorm(G.transect[itrans], a=ifelse(Resp[,1]==0,-Inf,0), b=ifelse(Resp[,1]==0,0,Inf), EY1, sqrt(1-Cor^2))
-			EY2=ExpY[,2]+Cor*(Temp.Y.tilde[,1]-ExpY[,1])
-			Temp.Y.tilde[,2] <- rtruncnorm(G.transect[itrans], a=ifelse(Resp[,2]==0,-Inf,0), b=ifelse(Resp[,2]==0,0,Inf), EY2, sqrt(1-Cor^2))
-			Y.tilde[1:n.Records[itrans],itrans]=as.vector(t(Temp.Y.tilde))
+			ExpY=X%*%Par$det+PI.RE[1:n.Records[itrans],itrans]
+			Y.tilde[1:n.Records[itrans],itrans]=rtruncnorm(G.transect[itrans],a=ifelse(Cur.dat[,2]==0,-Inf,0),b=ifelse(Cur.dat[,2]==0,0,Inf),ExpY)
 		}
 
 		###############       update detection process parameters       ##############
 		# First, assemble stacked adjusted Response, X matrices across all transects; 
-		#basic form of response is Ytilde[obs1]-cor*Ytilde[obs2]
-		#adjusted DM rows are of form X[obs1]-cor*X[obs2]
 		Cur.dat=Data[1,1:n.Records[1],]
-		Dist=matrix(Cur.dat[,dist.pl],G.transect[1],n.Observers[1],byrow=TRUE)[,1]
-		X.temp=array(t(get_mod_matrix(Cur.dat=Cur.dat,stacked.names,factor.ind,Det.formula,Levels)),dim=c(n.beta.det,2,G.transect[1]))
-		if(n.Observers[1]==2){
-			Tmp.cor=Par$cor*(i.binned*(Dist-1)*dist.mult+(1-i.binned)*Dist)
-			Cor=rep(Tmp.cor,2)  #assemble vector of correlation parameters for each observation
-			X.beta=rbind(t(X.temp[,1,])-Tmp.cor*t(X.temp[,2,]),t(X.temp[,2,])-Tmp.cor*t(X.temp[,1,]))
-			Y.temp=matrix(Y.tilde[1:n.Records[1],1],G.transect[1],2,byrow=TRUE)
-			Y.beta=c(Y.temp[,1]-Tmp.cor*Y.temp[,2],Y.temp[,2]-Tmp.cor*Y.temp[,1])
-		}
-		else{
-			X.beta=t(X.temp[,1,])
-			Y.beta=Y.tilde[1:n.Records[1],1]
-			Cor=rep(1,n.Records[1])
-		}
+		X=get_mod_matrix(Cur.dat=Cur.dat,stacked.names,factor.ind,Det.formula,Levels)
+		Y=Y.tilde[1:n.Records[1],1]-PI.RE[1:n.Records[1],1]		
 		for(itrans in 2:n.transects){
 			Cur.dat=Data[itrans,1:n.Records[itrans],]
-			Dist=matrix(Cur.dat[,dist.pl],G.transect[itrans],n.Observers[itrans],byrow=TRUE)[,1]
-			X.temp=array(t(get_mod_matrix(Cur.dat=Cur.dat,stacked.names,factor.ind,Det.formula,Levels)),dim=c(n.beta.det,2,G.transect[itrans]))
-			if(n.Observers[1]==2){
-				Tmp.cor=Par$cor*(i.binned*(Dist-1)*dist.mult+(1-i.binned)*Dist)
-				Cor=c(Cor,rep(Tmp.cor,2))  #assemble vector of correlation parameters for each observation
-				X.beta=rbind(X.beta,t(X.temp[,1,])-Tmp.cor*t(X.temp[,2,]),t(X.temp[,2,])-Tmp.cor*t(X.temp[,1,]))
-				Y.temp=matrix(Y.tilde[1:n.Records[itrans],itrans],G.transect[itrans],2,byrow=TRUE)
-				Y.beta=c(Y.beta,Y.temp[,1]-Tmp.cor*Y.temp[,2],Y.temp[,2]-Tmp.cor*Y.temp[,1])
-			}
-			else{
-				X.beta=rbind(X.beta,t(X.temp[,1,]))
-				Y.beta=c(Y.beta,Y.tilde[1:n.Records[itrans],1])
-				Cor=c(Cor,rep(1,n.Records[itrans]))
-			}
+			X=rbind(X,get_mod_matrix(Cur.dat=Cur.dat,stacked.names,factor.ind,Det.formula,Levels))
+			Y=c(Y,Y.tilde[1:n.Records[itrans],itrans]-PI.RE[1:n.Records[itrans],itrans])
 		}
 		#now use basic matrix equations from Gelman '04 book (14.11 14.12) to update beta parms
-		Sig.inv=sqrt(1-Cor^2)  #for use in eq. 14.11, 14.12 of Gelman et al.; don't need a matrix since it would be diagonal
-		V.inv <- crossprod(X.beta,Sig.inv*X.beta) 	
-		M.z <- solve(V.inv, crossprod(X.beta,Sig.inv*Y.beta))
-		Par$det <- M.z + solve(chol(V.inv), rnorm(n.beta.det,0,1))
+		V.inv <- crossprod(X,X) 	
+		M.eps <- solve(V.inv, crossprod(X,Y))
+		Par$det <- M.eps + solve(chol(V.inv), rnorm(n.beta.det,0,1))
 
 		
-		#update correlation parameter for detection process (if applicable)
+		#update heterogeneity/point independence parameter for detection process (i.e., gamma in sigma(RE)=gamma*distance))
 		if(point.ind==1){
-		    cor.star=Par$cor+runif(1,-Control$MH.cor,Control$MH.cor)
-			if(cor.star>0 & cor.star<1){
-				I.gt.one=which(n.Observers>1)
-				n.gt.one=length(I.gt.one)
-				
-				Cur.dat=Data[I.gt.one[1],1:n.Records[I.gt.one[1]],]
-				Dist=matrix(Cur.dat[,dist.pl],G.transect[I.gt.one[1]],n.Observers[I.gt.one[1]],byrow=TRUE)[,1]
-				X.temp=array(t(get_mod_matrix(Cur.dat=Cur.dat,stacked.names,factor.ind,Det.formula,Levels)),dim=c(n.beta.det,2,G.transect[I.gt.one[1]]))
-				Y.temp=matrix(Y.tilde[1:n.Records[I.gt.one[1]],I.gt.one[1]],G.transect[I.gt.one[1]],2,byrow=TRUE)			
-				Delta1=Y.temp[,1]-(t(X.temp[,1,]) %*% Par$det)
-				Delta2=Y.temp[,2]-(t(X.temp[,2,]) %*% Par$det)
-				
-				if(n.gt.one>1){
-					for(itrans in 2:n.gt.one){
-						Cur.dat=Data[I.gt.one[itrans],1:n.Records[I.gt.one[itrans]],]
-						Dist=c(Dist,matrix(Cur.dat[,dist.pl],G.transect[I.gt.one[itrans]],n.Observers[I.gt.one[itrans]],byrow=TRUE)[,1])
-						X.temp=array(t(get_mod_matrix(Cur.dat=Cur.dat,stacked.names,factor.ind,Det.formula,Levels)),dim=c(n.beta.det,2,G.transect[I.gt.one[itrans]]))
-						Y.temp=matrix(Y.tilde[1:n.Records[I.gt.one[itrans]],I.gt.one[itrans]],G.transect[I.gt.one[itrans]],2,byrow=TRUE)			
-						Delta1=c(Delta1,Y.temp[,1]-(t(X.temp[,1,]) %*% Par$det))
-						Delta2=c(Delta2,Y.temp[,2]-(t(X.temp[,2,]) %*% Par$det))
+		    gamma.star=Par$pi.par+runif(1,-Control$MH.pi,Control$MH.pi)
+			if(gamma.star>0){
+				#assemble stacked dataset
+				Y=NULL
+				Dist=NULL
+				for(itrans in 1:n.transects){
+					if(n.Observers[itrans]==1){
+						Y=c(Y,RE.1obs[1:n.Records[itrans],RE.col.index[itrans]])
+						Dist=c(Dist,Data[itrans,1:n.Records[itrans],dist.pl])
+					}
+					else{
+						Y=c(Y,RE.2obs[1:G.transect[itrans],RE.col.index[itrans]])
+						Dist=c(Dist,matrix(Data[itrans,1:n.Records[itrans],dist.pl],G.transect[itrans],n.Observers[itrans])[,1])
 					}
 				}
-				Cor=Par$cor*(i.binned*(Dist-1)*dist.mult+(1-i.binned)*Dist)
-				logP.old=-.5*(sum(log(1-Cor^2))+sum((Delta1^2+Delta2^2-2*Cor*Delta1*Delta2)/(1-Cor^2)))
-				Cor=cor.star*(i.binned*(Dist-1)*dist.mult+(1-i.binned)*Dist)
-				logP.new=-.5*(sum(log(1-Cor^2))+sum((Delta1^2+Delta2^2-2*Cor*Delta1*Delta2)/(1-Cor^2)))
-				if(runif(1)<exp(logP.new-logP.old)){
-					Par$cor=cor.star
-					Accept$cor=Accept$cor+1
-				}				
+				if(i.binned==1)Dist=Dist-1
+				which.gt.0=which(Dist>0)
+				LogP.new=sum(dnorm(Y[which.gt.0],0,Dist[which.gt.0]*gamma.star),log=1)+dnorm(gamma.star,0,Prior.pars$sig.pi,log=1) #normal prior
+				LogP.old=sum(dnorm(Y[which.gt.0],0,Dist[which.gt.0]*Par$pi.par),log=1)+dnorm(Par$pi.par,0,Prior.pars$sig.pi,log=1)	
+				if(runif(1)<exp(LogP.new-LogP.old)){
+					Par$pi.par=gamma.star
+					Accept$pi=Accept$pi+1
+				}
 			}
 		}
 		
@@ -585,7 +573,7 @@
 			MCMC$G[iiter-Control$burnin,]=Par$G
 			MCMC$N[iiter-Control$burnin,]=Par$N
 			MCMC$N.tot[iiter-Control$burnin]=sum(Par$N)
-			MCMC$cor[iiter-Control$burnin]=Par$cor
+			MCMC$pi[iiter-Control$burnin]=Par$pi.par
 			MCMC$Hab[iiter-Control$burnin,]=Par$hab
 			MCMC$Det[iiter-Control$burnin,]=Par$det
 			MCMC$tau.eta[iiter-Control$burnin]=Par$tau.eta
@@ -593,6 +581,12 @@
 			
 		}
 
+		if(iiter==100){
+			tpi <- as.numeric(difftime(Sys.time(), st, units="secs"))/100
+			ttc <- round((Control$iter-100)*tpi/3600, 2)
+			cat("\nApproximate time till completion: ", ttc, " hours\n")
+		}
+		
 	}
 
 #}
