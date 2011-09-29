@@ -73,18 +73,18 @@ get_mod_matrix<-function(Cur.dat,stacked.names,factor.ind,Det.formula,Levels){
 #' @param Mapping	a vector mapping each transect to it's associated strata
 #' @param point.ind	is point independence assumed (TRUE/FALSE)
 #' @param spat.ind  is spatial independence assumed? (TRUE/FALSE)
-#' @param Control A list object giving MCMC tuning parameters 
+#' @param grp.mean  pois1 parameter for group size
 #' @return a list of initial parameter values
 #' @export
 #' @keywords initial values, mcmc
 #' @author Paul B. Conn
-generate_inits<-function(DM.hab,DM.det,G.transect,Area.trans,Area.hab,Mapping,point.ind,spat.ind,Control){		
+generate_inits<-function(DM.hab,DM.det,G.transect,Area.trans,Area.hab,Mapping,point.ind,spat.ind,grp.mean){		
 	Par=list(det=rnorm(ncol(DM.det),0,1),hab=rep(0,ncol(DM.hab)),cor=ifelse(point.ind,runif(1,0,1),0),
 			Nu=log(max(G.transect)/mean(Area.trans)*exp(rnorm(length(Area.hab)))),Eta=rnorm(length(Area.hab)),
 			tau.eta=runif(1,0.5,2),tau.nu=runif(1,0.5,2))
 	Par$hab[1]=mean(G.transect)/(mean(Area.trans)*mean(Area.hab))*exp(rnorm(1,0,1))
 	Par$G=exp(Par$Nu)*Area.hab*exp(rnorm(length(Par$Nu)))
-	Par$N=Par$G+rpois(length(Par$G),Control$grp.mean*Par$G)
+	Par$N=Par$G+rpois(length(Par$G),grp.mean*Par$G)
 	if(spat.ind==1)Par$Eta=0*Par$Eta
 	Par
 }

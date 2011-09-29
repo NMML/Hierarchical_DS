@@ -1,10 +1,10 @@
 #' function to simulate data and run a simple hierarchical example analysis using said dataset
-#' @param S	number of sites
 #' @return see help for hierarchical_DS
 #' @export
 #' @keywords simulation
 #' @author Paul B. Conn
-run_analysis=function(S){
+run_analysis=function(){
+	S=10
 	Dat=simulate_data(S=S) 
 	n.bins=length(unique(Dat[,6]))
 	Adj=matrix(0,S,S)
@@ -28,11 +28,11 @@ run_analysis=function(S){
 	point.ind=TRUE
 	spat.ind=FALSE
 	grps=TRUE
-	M=200
-	Control=list(iter=15000,burnin=100,thin=5,MH.cor=0.05,MH.nu=.01,MH.beta=c(.2,.4),grp.mean=3,RJ.N=rep(5,S),adapt=1000)
+	M=c(40,60,80,100,120,140,160,180,200,200)
+	Control=list(iter=1500,burnin=100,thin=5,MH.cor=0.05,MH.nu=.01,MH.beta=c(.2,.4),RJ.N=rep(5,S),adapt=1000)
 	Inits=NULL
 	Prior.pars=list(a.eta=.01,b.eta=.01,a.nu=.01,b.nu=.01,beta.sd=c(10000,100))
 	adapt=TRUE
 	
-	Out=hierarchical_DS(Dat=Dat,Adj=Adj,Area.hab=Area.hab,Mapping=Mapping,Area.trans=Area.trans,Bin.length=Bin.length,Hab.cov=Hab.cov,n.obs.cov=n.obs.cov,pol.eff=NULL,point.ind=TRUE,spat.ind=FALSE,Inits=NULL,grps=grps,M=M,Control=Control,adapt=TRUE,Prior.pars=Prior.pars)
+	Out=hierarchical_DS(Dat=Dat,Adj=Adj,Area.hab=Area.hab,Mapping=Mapping,Area.trans=Area.trans,Bin.length=Bin.length,Hab.cov=Hab.cov,n.obs.cov=n.obs.cov,Hab.formula=Hab.formula,Det.formula=Det.formula,Cov.prior.pdf=Cov.prior.pdf,Cov.prior.parms=Cov.prior.parms,pol.eff=NULL,point.ind=TRUE,spat.ind=FALSE,Inits=NULL,grps=grps,M=M,Control=Control,adapt=TRUE,Prior.pars=Prior.pars)
 }

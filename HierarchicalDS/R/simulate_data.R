@@ -1,5 +1,12 @@
-# simulate data for hierarchical abundance estimation
+#' function to simulate distance sampling data from simple model with increasing abundance
+#' intensity, no assumed spatial structure, and point independence
+#' @param S number of spatial strata (a single transect is placed in each strata and assumed to cover the whole strata)
+#' @return a distance sampling dataset
+#' @export
+#' @keywords distance sampling, simulation
+#' @author Paul B. Conn
 simulate_data<-function(S){
+	require(mvtnorm)
 	#S=10 #number of sites
 	
 	#process parameters
