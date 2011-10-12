@@ -22,14 +22,19 @@
 #' @param Det.formula  A formula giving the model for detection probability (e.g. ~Distance+Group+Visibility+Observer). Note that
 #'				there are several "reserved" variable names.  "Distance", "Observer", and "Group" are reserved variable names.
 #' @param Cov.prior.pdf	If individual covariates are provided, this character vector gives the form of the prior pdfs for each covariate
-#'		  current possibilities are "poisson", "pois1","uniform.disc", "uniform.cont", or "normal".
-#'		  "pois1" is 1+x where x~poisson
-#' @param Cov.prior.parms	A (2 X n) matrix where n is the number of individual covariates (other than distance).  Each column
-#'		gives the parameters associated with the prior pdf of a given covariate (only the value in the first row is
-#'		used for "poisson"; for normal, first row gives mean, second row gives sd; for uniform, first row gives lower,
-#'		second row gives upper; for constant, the parameter entries are just placeholders (no parameters are required)
-#'		note that these priors are also used to propose covariate values during RJMCMC, so should be 
-#'		made to be biologically plausible (i.e., don't use 'vague' priors!)
+#'		  current possibilities are "poisson", "pois1","poisson_ln","pois1_ln",uniform.disc","multinom","uniform.cont", or "normal".
+#'		  "pois1" is 1+x where x~poisson; "poisson_ln" and "pois1_ln" are lognormal poisson models that incorporate overdispersion.
+#' @param Cov.prior.parms	A (k X n) matrix where n is the number of individual covariates (other than distance), and
+#' 		k is the maximum number of parameters considered for a single covariate (NAs can be used to fill this matrix
+#'      out for covariate priors that have <k parameters).  If Cov.prior.fixed=1 for a given entry, the prior parameters supplied
+#'      in each column apply to the prior pdf itself, and are treated as fixed.  If Cov.prior.fixed=0, the model will attempt
+#'  	to estimate the posterior distribution of model parameters, given hyperpriors.  In this case, it is actually the hyperpriors
+#'      that are being specified.  For "poisson", and "pois1", it is assumed that lambda~gamma(alpha,beta), so alpha
+#' 		and beta must be supplied.  For "poisson_ln", and "pois1_ln", the model is lambda_i=exp(-sigma*Z_i+theta), so it is priors
+#' 		for theta and sigma that are specified (in that order).  Theta is assumed to have a normal(mu,s^2) distribution,
+#' 		and sigma is assumed to have a uniform(0,a) distribution; thus, priors are specified for these models as (mu,s, and a).
+#' 		For the multinomial pdf, prior parameters of the dirichlet distribution must be specified if Cov.prior.fixed=1.
+#' @param Cov.prior.fixed  An indicator vector specifying which (if any) individual covariate distributions should be fixed during estimation
 #' @param pol.eff 	For continuous distance, which polynomial degrees to model (default is c(1:2); an intercept is always estimated when "Distance" is listed in "Det.formula")
 #' @param point.ind  Estimate a correlation parameter for detection probability that's an increasing function of distance?
 #' @param spat.ind	If TRUE, assumes spatial independence (no spatial random effects on abundance intensity) default is FALSE
@@ -68,11 +73,12 @@
 #' @import Matrix
 #' @keywords areal model, data augmentation, distance sampling, mcmc, reversible jump
 #' @author Paul B. Conn
-hierarchical_DS<-function(Dat,Adj,Area.hab=1,Mapping,Area.trans,Bin.length,Hab.cov,Hab.formula,Det.formula,Cov.prior.pdf,Cov.prior.parms,n.obs.cov=0,pol.eff=c(1:2),point.ind=TRUE,spat.ind=FALSE,Inits=NULL,grps=FALSE,M,Control,adapt=TRUE,Prior.pars){
+hierarchical_DS<-function(Dat,Adj,Area.hab=1,Mapping,Area.trans,Bin.length,Hab.cov,Hab.formula,Det.formula,Cov.prior.pdf,Cov.prior.parms,Cov.prior.fixed,n.obs.cov=0,pol.eff=c(1:2),point.ind=TRUE,spat.ind=FALSE,Inits=NULL,grps=FALSE,M,Control,adapt=TRUE,Prior.pars){
 	require(mvtnorm)
 	require(Matrix)
 	require(truncnorm)
-
+	require(mc2d)
+	
 	S=nrow(Adj)
 	n.transects=length(unique(Dat[,1]))
 	n.Observers=rep(0,n.transects)
@@ -131,7 +137,7 @@ hierarchical_DS<-function(Dat,Adj,Area.hab=1,Mapping,Area.trans,Bin.length,Hab.c
 		if(n.ind.cov>0){
 			Data[itrans,1:nrow(Cur.dat),(4+n.obs.cov):(4+n.obs.cov+n.ind.cov-1)]=Cur.dat[,(4+n.obs.cov):(4+n.obs.cov+n.ind.cov-1)]
 			for(icov in 1:n.ind.cov){
-				rsamp=switch_sample(n=(M[itrans]-nrow(Cur.dat))/n.Observers[itrans],pdf=Cov.prior.pdf[icov],cur.par=Cov.prior.parms[,icov])
+				rsamp=switch_sample(n=(M[itrans]-nrow(Cur.dat))/n.Observers[itrans],pdf=Cov.prior.pdf[icov],cur.par=Cov.prior.parms[,icov],RE=0)
 				Data[itrans,(nrow(Cur.dat)+1):M[itrans],3+n.obs.cov+icov]=rep(rsamp,each=n.Observers[itrans])
 			}
 		}
@@ -173,6 +179,15 @@ hierarchical_DS<-function(Dat,Adj,Area.hab=1,Mapping,Area.trans,Bin.length,Hab.c
 	#start out at true value for now
 	Par$hab=c(log(100),1)
 	Par$Nu=DM.hab%*%Par$hab
+	#get initial individual covariate parameter values
+	Par$Cov.par=Cov.prior.parms 
+	for(i in 1:n.ind.cov){	
+		if(Cov.prior.fixed[i]==1)Par$Cov.par[,i]=Cov.prior.parms[,i]
+		else{
+			temp=switch_sample_prior(Cov.prior.pdf[i],Cov.prior.parms[,i])
+			Par$Cov.par[1:length(temp),i]=temp
+		}
+	}
 	
 	dist.pl=3+n.obs.cov
 	
@@ -200,7 +215,7 @@ hierarchical_DS<-function(Dat,Adj,Area.hab=1,Mapping,Area.trans,Bin.length,Hab.c
 			Mapping=Mapping,Covered.area=Covered.area,n.Observers=n.Observers,M=M,stacked.names=stacked.names,
 			factor.ind=factor.ind,Det.formula=Det.formula,Levels=Levels,i.binned=i.binned,dist.pl=dist.pl,
 			G.transect=G.transect,N.transect=N.transect,grps=grps,n.bins=n.bins,Bin.length=Bin.length,n.ind.cov=n.ind.cov,
-			Cov.prior.pdf=Cov.prior.pdf,Cov.prior.parms=Cov.prior.parms,point.ind=point.ind)
+			Cov.prior.pdf=Cov.prior.pdf,Cov.prior.parms=Cov.prior.parms,Cov.prior.fixed=Cov.prior.fixed,point.ind=point.ind)
 		
 	if(adapt==TRUE){
 		cat('\n Beginning adapt phase \n')

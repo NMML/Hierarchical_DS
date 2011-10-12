@@ -11,18 +11,21 @@ simulate_data<-function(S){
 	
 	#process parameters
 	lambda.grp=3
+	Species.prop=c(.1,.2,.3,.4)  #4 species!
 	X.site=cbind(rep(1,S),log(c(1:S)/S)) #covariate on abundance intensity
 	Beta.site=c(log(100),1) 
 	
 	#detection parameters
 	n.bins=5 #n.bins=5 hardwired elsewhere
-	Beta.det=c(1.2,1.0,0.8,-.8,-.6,-.4,-.2,.2)  #obs 1 (bin 1), obs 2, obs 3, offset for bin 2, ..., offset for bin n.bins, grp size
+	Beta.det=c(1.2,1.0,0.8,-.8,-.6,-.4,-.2,.2,0,0,0,0)
+	#Beta.det=c(1.2,1.0,0.8,-.8,-.6,-.4,-.2,.2,0,.2,-.4,-.2)  #obs 1 (bin 1), obs 2, obs 3, offset for bin 2, ..., offset for bin n.bins, grp size,species
+												#in this version, distance pars are additive (i.e., bin 3 gets bin 2 and bin 3 effect).
 	cor.par=0.5 #correlation in max age bin (linear from zero)
+		
+	N=rpois(S,0.5*exp(X.site%*%Beta.site))
+	#N=exp(X.site%*%Beta.site)
 	
-	
-	N=round(exp(X.site%*%Beta.site))
-	
-	Dat=matrix(0,sum(N),7)  #rows are site, observer 1 ID, obs 2 ID,  Y_1, Y_2, Distance, Group size
+	Dat=matrix(0,sum(N),8)  #rows are site, observer 1 ID, obs 2 ID,  Y_1, Y_2, Distance, Group size,species
 	X=rep(0,length(Beta.det))
 	pl=1
 	for(i in 1:S){
@@ -37,12 +40,18 @@ simulate_data<-function(S){
 			Dat[pl,3]=Observers[2]
 			Dat[pl,6]=sample(c(1:n.bins),1)
 			Dat[pl,7]=rpois(1,lambda.grp)+1
+			cur.sp=sample(c(1,2,3,4),1,prob=Species.prop)
+			Dat[pl,8]=cur.sp
 			if(Dat[pl,6]>1){
 				X1[4:(2+Dat[pl,6])]=1
 				X2[4:(2+Dat[pl,6])]=1
 			}
 			X1[8]=Dat[pl,7]
 			X2[8]=Dat[pl,7]
+			temp=c(0,0,0,0)
+			temp[cur.sp]=1
+			X1[9:12]=temp
+			X2[9:12]=temp
 			mu1=X1%*%Beta.det
 			mu2=X2%*%Beta.det
 			cur.cor=(Dat[pl,6]-1)/(n.bins-1)*cor.par
@@ -75,7 +84,7 @@ simulate_data<-function(S){
 		ipl=ipl+2
 	}
 	Dat2=as.data.frame(Dat2)
-	colnames(Dat2)=c("Transect","Match","Observer","Obs","Seat","Distance","Group")
+	colnames(Dat2)=c("Transect","Match","Observer","Obs","Seat","Distance","Group","Species")
 	Dat2[,"Observer"]=as.factor(Dat2[,"Observer"])
 	Dat2[,"Seat"]=as.factor(Dat2[,"Seat"])
 	Dat2 

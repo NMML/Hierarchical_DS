@@ -6,6 +6,7 @@
 run_analysis=function(){
 	S=10
 	Dat=simulate_data(S=S) 
+	Dat=Dat[,-8]
 	n.bins=length(unique(Dat[,6]))
 	Adj=matrix(0,S,S)
 	for(i in 2:S){
@@ -14,25 +15,31 @@ run_analysis=function(){
 	}
 	Area.hab=rep(1,S)
 	Mapping=c(1:S)
-	Area.trans=rep(1,S)
+	Area.trans=rep(0.5,S)
 	Bin.length=rep(1,n.bins)
 	Hab.cov=data.frame(matrix(log(c(1:S)/S),S,1))
 	colnames(Hab.cov)="Cov1"
 	n.obs.cov=1  #dummy 'seat' variable
 	Hab.formula=~Cov1
 	Det.formula=~Observer+Seat+Distance+Group
-	Cov.prior.pdf="pois1"
-	Cov.prior.parms=matrix(c(3,NA),2,1)
+	#Det.formula=~Observer+Seat+Distance+Group+Species
+	#Cov.prior.pdf=c("pois1_ln","multinom")
+	#Cov.prior.parms=matrix(c(1.1,1,1,0,1,1,1,1),4,2)
+	#Cov.prior.fixed=c(0,0)
+	Cov.prior.pdf="pois1_ln"
+	Cov.prior.parms=matrix(c(1.1,1,1),3,1)
+	Cov.prior.fixed=0
+	#colnames(Cov.prior.parms)=c("Group","Species")
 	colnames(Cov.prior.parms)="Group"
 	pol.eff=2 #not currently used since using distance bins
 	point.ind=TRUE
-	spat.ind=FALSE
+	spat.ind=TRUE  #dont' include spatial dependence unless there really is spatial structure!
 	grps=TRUE
-	M=c(40,60,80,100,120,140,160,180,200,200)
-	Control=list(iter=1500,burnin=100,thin=5,MH.cor=0.05,MH.nu=.01,MH.beta=c(.2,.4),RJ.N=rep(5,S),adapt=1000)
+	M=c(30,50,60,80,90,100,110,120,130,140)
+	Control=list(iter=25000,burnin=5000,thin=5,MH.cor=0.05,MH.nu=.01,MH.beta=c(.2,.4),RJ.N=rep(5,S),adapt=5000)
 	Inits=NULL
-	Prior.pars=list(a.eta=.01,b.eta=.01,a.nu=.01,b.nu=.01,beta.sd=c(10000,100))
+	Prior.pars=list(a.eta=1,b.eta=.01,a.nu=1,b.nu=.01,beta.sd=c(10000,100)) #(1,.01) prior makes it closer to a uniform distribution near the origin
 	adapt=TRUE
 	
-	Out=hierarchical_DS(Dat=Dat,Adj=Adj,Area.hab=Area.hab,Mapping=Mapping,Area.trans=Area.trans,Bin.length=Bin.length,Hab.cov=Hab.cov,n.obs.cov=n.obs.cov,Hab.formula=Hab.formula,Det.formula=Det.formula,Cov.prior.pdf=Cov.prior.pdf,Cov.prior.parms=Cov.prior.parms,pol.eff=NULL,point.ind=TRUE,spat.ind=FALSE,Inits=NULL,grps=grps,M=M,Control=Control,adapt=TRUE,Prior.pars=Prior.pars)
+	Out=hierarchical_DS(Dat=Dat,Adj=Adj,Area.hab=Area.hab,Mapping=Mapping,Area.trans=Area.trans,Bin.length=Bin.length,Hab.cov=Hab.cov,n.obs.cov=n.obs.cov,Hab.formula=Hab.formula,Det.formula=Det.formula,Cov.prior.pdf=Cov.prior.pdf,Cov.prior.parms=Cov.prior.parms,Cov.prior.fixed=Cov.prior.fixed,pol.eff=NULL,point.ind=TRUE,spat.ind=FALSE,Inits=NULL,grps=grps,M=M,Control=Control,adapt=TRUE,Prior.pars=Prior.pars)
 }

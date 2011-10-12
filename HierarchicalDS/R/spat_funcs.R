@@ -1,18 +1,39 @@
 #' function to sample from a specified probability density function
 #' @param n number of samples desired
 #' @param pdf probability density function (pois1, poisson, normal, unif.disc, unif.cont)
-#' @param cur.par a length two vector giving parameters for the specified distribution; only the first is used for single parameter distributions
+#' @param cur.par a vector giving parameters for the specified distribution; only the first is used for single parameter distributions
+#' @param RE random effects, if present
 #' @return a vector of length n samples from the desired distribution 
 #' @export
 #' @keywords probability density
 #' @author Paul B. Conn
-switch_sample<-function(n,pdf,cur.par){
+switch_sample<-function(n,pdf,cur.par,RE){
 	switch(pdf,
 			pois1=rpois(n,cur.par[1])+1,
 			poisson=rpois(n,cur.par[1]),
+			pois1_ln=rpois(n,exp(cur.par[1]+cur.par[2]*RE))+1,
+			poisson_ln=rpois(n,exp(cur.par[1]+cur.par[2]*RE)),
 			normal=rnorm(n,cur.par[1],cur.par[2]),
 			unif.disc=sample(cur.par[1]:cur.par[2],n,replace=TRUE),
-			unif.cont=runif(n,cur.par[1],cur.par[2])
+			unif.cont=runif(n,cur.par[1],cur.par[2]),
+			multinom=sample(c(1:length(cur.par)),n,replace=TRUE,prob=cur.par)
+	)
+}
+
+#' function to sample from hyperpriors of a specified probability density function
+#' @param pdf probability density function (pois1, poisson, normal, unif.disc, unif.cont)
+#' @param cur.par a vector giving parameters for the specified distribution; only the first is used for single parameter distributions
+#' @return a vector of length n samples from the desired distribution 
+#' @export
+#' @keywords probability density
+#' @author Paul B. Conn
+switch_sample_prior<-function(pdf,cur.par){
+	switch(pdf,
+			pois1=rgamma(1,cur.par[1],cur.par[2]),
+			poisson=rgamma(1,cur.par[1],cur.par[2]),
+			pois1_ln=c(rnorm(1,cur.par[1],cur.par[2]),runif(1,0,cur.par[3])),
+			poisson_ln=c(rnorm(1,cur.par[1],cur.par[2]),runif(1,0,cur.par[3])),
+			multinom=rdirichlet(1,cur.par)
 	)
 }
 
@@ -42,7 +63,7 @@ stack_data<-function(Data,G.transect,n.transects,stacked.names,factor.ind){
 	Stacked
 }
 
-#' function to produce a design matrix given
+#' function to produce a design matrix given a dataset and user-specified formula object
 #' @param Cur.dat 	current dataset
 #' @param stacked.names	column names for current dataset
 #' @param factor.ind	a vector of indicator variables (1 = factor/categorical variable, 0 = continuous variable)
