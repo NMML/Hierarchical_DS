@@ -17,13 +17,15 @@ simulate_data<-function(S){
 	
 	#detection parameters
 	n.bins=5 #n.bins=5 hardwired elsewhere
-	Beta.det=c(1.2,1.0,0.8,-.8,-.6,-.4,-.2,.2,0,0,0,0)
-	#Beta.det=c(1.2,1.0,0.8,-.8,-.6,-.4,-.2,.2,0,.2,-.4,-.2)  #obs 1 (bin 1), obs 2, obs 3, offset for bin 2, ..., offset for bin n.bins, grp size,species
+	#Beta.det=c(1.2,1.0,0.8,-.8,-.6,-.4,-.2,.2,0,0,0,0)
+	Beta.det=c(1.2,1.0,0.8,-.8,-.6,-.4,-.2,.1,0,.2,-.4,-.2)  #obs 1 (bin 1), obs 2, obs 3, offset for bin 2, ..., offset for bin n.bins, grp size,species
 												#in this version, distance pars are additive (i.e., bin 3 gets bin 2 and bin 3 effect).
 	cor.par=0.5 #correlation in max age bin (linear from zero)
 		
 	N=rpois(S,0.5*exp(X.site%*%Beta.site))
-	#N=exp(X.site%*%Beta.site)
+	cat(paste("\n True G = ",N,'\n\n'))
+	cat(paste("\n True G.tot= ",sum(N),'\n'))
+	#N=0.5*exp(X.site%*%Beta.site)
 	
 	Dat=matrix(0,sum(N),8)  #rows are site, observer 1 ID, obs 2 ID,  Y_1, Y_2, Distance, Group size,species
 	X=rep(0,length(Beta.det))
@@ -79,6 +81,8 @@ simulate_data<-function(S){
 		Dat2[ipl+1,6]=Dat[irecord,6]
 		Dat2[ipl,7]=Dat[irecord,7]
 		Dat2[ipl+1,7]=Dat[irecord,7]
+		Dat2[ipl,8]=Dat[irecord,8]
+		Dat2[ipl+1,8]=Dat[irecord,8]
 		Dat2[ipl,2]=irecord  #match number
 		Dat2[ipl+1,2]=irecord
 		ipl=ipl+2
@@ -86,6 +90,8 @@ simulate_data<-function(S){
 	Dat2=as.data.frame(Dat2)
 	colnames(Dat2)=c("Transect","Match","Observer","Obs","Seat","Distance","Group","Species")
 	Dat2[,"Observer"]=as.factor(Dat2[,"Observer"])
+	Dat2[,"Distance"]=as.factor(Dat2[,"Distance"])
 	Dat2[,"Seat"]=as.factor(Dat2[,"Seat"])
+	Dat2[,"Species"]=as.factor(Dat2[,"Species"])
 	Dat2 
 }

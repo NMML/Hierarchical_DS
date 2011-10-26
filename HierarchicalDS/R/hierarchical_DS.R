@@ -97,9 +97,8 @@ hierarchical_DS<-function(Dat,Adj,Area.hab=1,Mapping,Area.trans,Bin.length,Hab.c
 	if(grps==TRUE)cur.colnames[6+n.obs.cov]="Group"
 	colnames(Dat)=cur.colnames
 	i.binned=0
-	if(sum(Dat[,"Distance"]%%1)==0){
+	if(is.factor(Dat[1,"Distance"])==1){
 		i.binned=1
-		Dat[,"Distance"]=as.factor(Dat[,"Distance"])
 		n.bins=length(unique(Dat[,"Distance"]))
 	}
 
@@ -192,8 +191,6 @@ hierarchical_DS<-function(Dat,Adj,Area.hab=1,Mapping,Area.trans,Bin.length,Hab.c
 	dist.pl=3+n.obs.cov
 	
 	n.hab.cov=ifelse(is.null(Hab.cov)==1,0,ncol(Hab.cov))
-	N.remain=Adj*0  #keep track of "remaining" abundance in each strata for portion of area not covered by transects
-	N.total=N.remain #keep track of total abundance by strata
 	
 	#Check to make sure input values are internally consistent
 	if(n.obs.max>2)cat("\n ERROR: Current max number of observers per transect is 2\n")

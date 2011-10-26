@@ -119,8 +119,8 @@ Researchers have extended conventional distance sampling to account for a variet
 
 Conventional, design-based distance sampling estimators are typically obtained via a two step procedure, whereby one first fits a detection function to distance data, and then uses the fitted model to estimate density or abundance over the landscape. Recently, much attention in ecology has been given to incorporating process models for abundance into the estimation process \cite{RoyleEtAl2004,RoyleEtAl2007}.  Spatial autocorrelation is pervasive in ecology, and it's inclusion can permit more precise inferences about abundance because areas with little to no sampling are informed by their neighbors, in effect ``. . .borrowing strength from the ensemble" \cite{Morris1983}.  Including such a model can also permit better inferences about how animal density changes across the landscape. In many cases, inclusion of such a process model requires a shift to a model-based estimation perspective, whereby abundance or some proxy (density, abundance intensity) are estimated simultaneously with parameters of the detection function. Several authors recently modeled spatial dependence when analyzing distance sampling data \cite{HedleyBuckland2004,JohnsonEtAl2010} using point process likelihoods, but we know of no studies which simultaneously consider inclusion of spatial dependence, individual and covariate effects on detection probability, and the ability to incorporate data from multiple observers.
 
-Hierarchical models are a natural framework for simultaneously modeling abundance and detection probabilities, as observation models can be superimposed on an underlying model for abundance intensity.  Moore and Barlow \cite{MooreBarlow2011} recently used a hierarchical model to account for strata and year effects on underlying densities when analyzing line transect data, but did not attempt to model data from multiple observers or use individual covariates in estimation. Indeed, the primary obstacle in formulating a distance sampling model hierarchically is in dealing with individual covariates.  For instance, one must formulate some way of modeling quantities such as distance and group size of unobserved groups of animals within the surveyed area.  Several authors have treated the topic of missing covariates in the context of mark-recapture abundance estimation \cite{DurbanElston2005,RoyleDorazio2008,Royle2009},
-and a few have suggested the potential for conducted hierarchical analysis of distance sampling data using an analagous data augmentation approach \cite{RoyleDorazio2008,LinkBarker2010}.  However, neither of the latter studies attempted to extend inference beyond estimating abundance for a single transect.
+Hierarchical models are a natural framework for simultaneously modeling abundance and detection probabilities, as observation models can be superimposed on an underlying model for abundance intensity.  Moore and Barlow \cite{MooreBarlow2011} recently used a hierarchical model to account for strata and year effects on underlying densities when analyzing line transect data, but did not attempt to model data from multiple observers or use individual covariates in estimation. Indeed, the primary obstacle in formulating a distance sampling model hierarchically is in dealing with individual covariates.  For instance, one must formulate some way of modeling quantities such as distance and group size of unobserved groups of animals within the surveyed area.  A number of authors have treated the topic of missing covariates in the context of mark-recapture estimation \cite{DurbanElston2005,RoyleDorazio2008,Royle2009,SchofieldBarker2011},
+and a few have suggested the potential for conducting hierarchical analysis of distance sampling data using an analagous data augmentation approach \cite{RoyleDorazio2008,LinkBarker2010}.  However, neither study attempted to extend inference beyond estimating abundance for a single transect.
 
 In this paper, we develop hierarchical models for distance sampling data that permit habitat covariates and spatial dependency to influence abundance intensity, while simultaneously modeling effects of covariates on detection probability and permitting multiple observer effects (including ability to have $<$100\% detection on the transect line and to accommodate dependence among observer detections).  At the landscape scale, we employ an intrinsic conditionally autoregressive (ICAR) spatial model \cite{BesagEtAl1991,BesagKooperberg1995,RueHeld2005} to account for habitat covariates and spatial dependency.  Building upon previous work by Durban and Elston \cite{DurbanElston2005} in the context of mark-recapture modeling, our approach for modeling detections and abundance at the transect level is based on data augmentation \cite{TannerWong1987,RoyleEtAl2007b}, using a reversible jump Markov chain Monte Carlo (RJMCMC) algorithm \cite{CarlinChib1995,Green1995} to sample abundance and individual covariates.
 
@@ -183,7 +183,11 @@ $$
 
 \subsubsection*{Covariate model}
 
-We model individual covariates as having arisen from a parametric distribution, possibly with overdispersion.  In general, let the covariate $x_{ijk} \sim f(g(\theta,\epsilon_{ijk}))$, where $f()$ specifies a probability density or mass function, $g()$ specifies an arbitrary function, $\theta$ gives hyper-priors for $f()$, and $\epsilon_{ijk}$ specify random effects.  We have implemented a number of such functions in our accompanying R package, \emph{dspat}.  For instance, the user can choose $f()$ to be a uniform, multinomial, Poisson, zero-truncated Poisson, overdispersed Poisson, or overdispersed zero-truncated Poisson distribution.  The overdispersed versions of the Poisson distribution are modeled as in \cite{McClintockEtAl2009}; namely
+We model individual covariates as having arisen from a parametric distribution, possibly with overdispersion.  In general, let the covariate
+\begin{equation} \label{eq:cov.dist}
+x_{ijk} \sim f(g(\theta,\epsilon_{ijk})),
+\end{equation}
+where $f()$ specifies a probability density or mass function, $g()$ specifies an arbitrary function, $\theta$ gives hyper-priors for $f()$, and $\epsilon_{ijk}$ specify random effects.  We have implemented a number of such functions in our accompanying R package, \emph{dspat}.  For instance, the user can choose $f()$ to be a uniform, multinomial, Poisson, zero-truncated Poisson, overdispersed Poisson, or overdispersed zero-truncated Poisson distribution.  The overdispersed versions of the Poisson distribution are modeled as in \cite{McClintockEtAl2009}; namely
 $$
 x_{ijk} \sim {\rm Poisson}(\theta+\sigma \epsilon_{ijk}),
 $$
@@ -222,7 +226,7 @@ $$
 In both cases, $\rho_{ij}$ is assumed to be zero on the line (or in the first distance bin), capturing the essential features of point independence \cite{BorchersEtAl2006,BucklandEtAl2010}.
 
 In practice, an equivalent reparameterization of this model greatly simplifies posterior simulation. In particular, let
-$$
+\begin{equation} \label{eq:obs.mod}
 \left(\begin{array}{c}
 				\tilde{Y}_{ij1} \\
 				\tilde{Y}_{ij1}
@@ -236,12 +240,13 @@ $$
             \rho_{ij} & 1
         \end{array} \right]
 \right).
-$$
+\end{equation}
 Under this parameterization, constraining $Y_{ijk}=1$ if and only if $\tilde{Y}_{ijk}>0$ results in the same probit-Bernoulli model as assumed previously.
 If there are multiple observers, conditioning on one value of $\tilde{Y}$ reduces the probability density from a bivariate to a univariate distribution.  Following Tabet \cite{Tabet2007},
-$$
+\begin{equation}
+\label{eq:biv_to_univ}
 [\tilde{Y}_{ij1} | \tilde{Y}_{ij2},\beta^{\rm hab},\rho_{ij}]={\rm Normal}(\mu_{ij1}+\rho_{ij}(\tilde{Y}_{ij2}-\mu_{ij2}),1-\rho_{ij}^2),
-$$
+\end{equation}
 where $\mu_{ijk}={\bf X}_{ijk} \boldsymbol{\beta}^{\rm det}$.
 
 
@@ -258,16 +263,16 @@ Total abundance is then calculated as $N=\sum_s (N_s+N_s^*)$.
 
 \subsubsection*{Prior distributions}
 
-Bayesian analysis requires specification of prior distributions for $\tau_\eta$, $\tau_\nu$, $\boldsymbol{\beta}^{\rm hab}$, $\boldsymbol{\beta}^{\rm det}$, and $\boldsymbol{\theta}$.  We chose conjugate ${\rm Gamma}(\alpha,\beta)$ priors for $\tau_\eta$ and $\tau_\nu$ so that full conditional distributions were available in closed form and could be sampled directly with Gibbs sampling; we chose $\alpha=??$ and $\beta=??$ in both cases, which put ample weight on plausible parameter values.
+Bayesian analysis requires specification of prior distributions for $\tau_\eta$, $\tau_\nu$, $\boldsymbol{\beta}^{\rm hab}$, $\boldsymbol{\beta}^{\rm det}$, and $\boldsymbol{\theta}$.  We chose conjugate ${\rm Gamma}(\alpha,\beta)$ priors for $\tau_\eta$ and $\tau_\nu$ so that full conditional distributions were available in closed form and could be sampled directly with Gibbs sampling; we chose $\alpha=1$ and $\beta=0.01$ in both cases, which put ample weight on plausible parameter values.
 
-We gave the $\beta$, which are analagous to regression parameters, vague ${\rm Normal}(0,100)$ prior distributions.  In contrast, we tended to impart more structure to the hyper-priors for individual covariates to improve sampling efficiency.  In our two subsequent examples, we incorporated a ${\rm Gamma}(?,?)$ distribution for group size; for the ice seal example species was modeled with a Dirichlet(10,10,10,10,10) distribution, the conjugate prior for the multinomial distribution.  Informal analyses suggested little sensitivity of results to our choice of prior distributions.
+We gave the $\beta$, which are analagous to regression parameters, flat (improper) priors, which is a common strategy in regression problems (e.g., \cite{GelmanEtAl2004}, Chapter 14).  In contrast, we tended to impart more structure to the hyper-priors for individual covariates to improve sampling efficiency.  In our two subsequent examples, we incorporated a ${\rm Gamma}(1.1,1.0)$ distribution for the log of group size, and a ${\rm Uniform}(0,1)$ distribution for $\sigma$ (the standard deviation for log group size random effects); for the ice seal example, species was modeled with a Dirichlet(10,10,10,10,10) distribution, the conjugate prior for the categorical distribution.  Informal analyses suggested little sensitivity of results to our choice of prior distributions.
 
 \subsection*{Data augmentation and Bayesian inference}
 
-As suggested previously, the primary challenge in implementing a complete data model for multiple covariate distance sampling was in jointly sampling abundance and individual covariates.  We chose to implement a reversible-jump ``Rasch" type model for abundance at the transect level, in a manner similar to Durban and Elston \cite{DurbanElston2005}.  This approach consists of several steps, including (1) additions and deletions of unobserved animals to the population, and (2) resampling of covariate values for unobserved animals, ans (3) sampling of $\tilde{Y}$ values for new additions. These steps were conducted independently for each transect; thus without loss of generality, we present sampling details for a single transect. We also assume that each transect is conducted within a single spatial grid cell with abundance intensity $\lambda_j$ (in practice, transects spanning multiple cells can be broken into multiple, independent transects and treated separately).
+As suggested previously, the primary challenge in implementing a complete data model for multiple covariate distance sampling was in jointly sampling abundance and individual covariates.  We chose to implement a reversible-jump ``Rasch" type model for abundance at the transect level, in a manner similar to Durban and Elston \cite{DurbanElston2005}.  This approach consists of several steps, including (1) additions and deletions of unobserved animals to the population, and (2) resampling of covariate values for unobserved animals, and (3) sampling of $\tilde{Y}$ values for new additions. These steps were conducted independently for each transect; thus without loss of generality, we present sampling details for a single transect. We also assume that each transect is conducted within a single spatial grid cell with abundance intensity $\lambda_j$ (in practice, transects spanning multiple cells can be broken into multiple, independent transects and treated separately).
 
-Specification of the complete data model starts with specifying an integer $M_j$ that serves as the upper limit for the number of groups of animals present in the sampled area of transect $j$. In practice, this integer can be increased if it is found that the posterior group abundance runs up against this bound (however, choosing too large of a value can severely increase computing time) \cite{DurbanEston2005}.
-Given a fixed value of $M_j$, the structure of complete data can be visualized (Figure \ref{fig:dataaug}).
+Specification of the complete data model starts with specifying an integer $M_j$ that serves as the upper limit for the number of groups of animals present in the sampled area of transect $j$. In practice, this integer can be increased if it is found that the posterior group abundance runs up against this bound \cite{DurbanElston2005,RoyleEtAl2007b}. However, choosing too large of a value can dramatically increase computing time.
+
 Addition and deletion steps consist of increasing or decreasing the value of $G_j$, and are accomplished as follows:
 \begin{itemize}
     \item Propose a new value for $G_j$, $G_j^\prime=G_j+u$, where
@@ -284,12 +289,16 @@ Addition and deletion steps consist of increasing or decreasing the value of $G_
     $$
 \end{itemize}
     Here, $p_{ij}$ equals the probability that group $i$ of transect $j$ is observed by one or more observer.  If there is only one observer on transect $j$, this probability is simply $$
-      p_{ij} = \int_0^\infty {\rm Normal}({\bf X}_{ij1}\boldsymbol{\beta}^{\rm det},1)dx;
+      p_{ij} = \int_0^\infty {\rm Normal}(x;{\bf X}_{ij1}\boldsymbol{\beta}^{\rm det},1)dx;
     $$
     if $O_j=2$,
     $$
       p_{ij} = \int_0^\infty \int_0^\infty {\rm Normal}
         \left( \left[ \begin{array}{c}
+				x\\
+				y
+		\end{array} \right]; \left[
+        \begin{array}{c}
 				{\bf X}_{ij1}^{\rm det} \boldsymbol{\beta}^{\rm
                 det}\\
 				{\bf X}_{ij2}^{\rm det} \boldsymbol{\beta}^{\rm
@@ -302,8 +311,7 @@ Addition and deletion steps consist of increasing or decreasing the value of $G_
         \right) dx dy
     $$
 
-
-These Metropolis ratios follow directly from a sampling model whereby the likelihood of observing $G_j^{\rm obs}$ individuals out of $G_j$ total animals is
+These Metropolis ratios follow directly from a sampling model where the likelihood of observing $G_j^{\rm obs}$ individuals out of $G_j$ total animals is
 $$
 \left( \begin{array}{l}
 G_j \\
@@ -313,15 +321,141 @@ G_j^{\rm obs}
 $$
 where $Y_{ij}=\max(Y_{ij1},Y_{ij2})$.  Link and Barker \cite{LinkBarker2010} used a similar model formulation in their complete data representation of distance data.
 
-Following the addition/deletion step, the next step in our RJMCMC estimation scheme is to resample individual covariates.  For each such covariate, there are two categories of values to update: (1) covariates for which a group of animals were in the population and never observed, and (2) latent groups not currently belonging to the population. For groups $G_{j}^{\rm obs},G_{j}^{\rm obs}+1,\hdots,G_j$, these covariates can be simulated using ....
+Following the addition/deletion step, the next step in our RJMCMC estimation scheme is to resample individual covariates.  For each such covariate, there are two categories of values to update: (1) covariates for which a group of animals were in the population and never observed, and (2) latent groups not currently belonging to the population. For groups $G_{j}^{\rm obs},G_{j}^{\rm obs}+1,\hdots,G_j$, the full conditional distribution for a given covariate $c$, $x_{ijc}$ is given by
+$$
+[Y_{ij1}=0,Y_{ij2}=0|{\bf x}_{ij},\boldsymbol{\beta},{\bf X}_{ij1},{\bf X}_{ij2}]][x_{ijc}|\boldsymbol{\theta}],
+$$
+which is just the observation model (e.g., Eq. \ref{eq:obs.mod}) multiplied by the prior distribution of the individual covariate.  We use a Metropolis-Hastings step to sample from this distribution.
 
-For groups $G_j+1,G_j+2, \hdots,M$ (i.e., ``pseudo-animals" not in the population), we simulate covariates directly from the distribution $f()$ specified for the given covariate.  These distributions are used in place of the pseudo-prior distributions suggested by Durban and Elston \ref{DurbanElston2005}.  The difference between our approaches is that in the present work we obtain posterior samples from $f()$ (e.g., the parameters describing the underlying covariate distribution), while Durban and Elston fix these parameters.  Simulations (see below) suggest that this approach results in estimates with reasonable properties, and also bypasses the need to tediously tune pseudo-prior distributions.  Conforming to a priori expectations, we used a uniform distribution for simulation of pseudo-animal distances (note that simulating from $[d_{ij} | Y_{ijk}=0]$ instead leads to positively biased abundance estimates!).
+For groups $G_j+1,G_j+2, \hdots,M$ (i.e., ``pseudo-animals" not in the population), we simulate covariates directly from Eq. \ref{eq:cov.dist}.  These distributions are used in place of the pseudo-prior distributions suggested by Durban and Elston \cite{DurbanElston2005}.  The difference between our approaches is that in the present work we obtain posterior samples of the parameters specified in  $f()$ (e.g., the parameters describing the underlying covariate distribution), while Durban and Elston fix these parameters.  Simulations (see below) suggest that this approach results in estimates with reasonable properties, and also bypasses the need to tediously tune pseudo-prior distributions.  Conforming to a priori expectations, we used a uniform distribution for simulation of pseudo-animal distances (note that simulating from $[d_{ij} | Y_{ijk}=0]$ instead leads to positively biased abundance estimates!).
 
-A final step in data augmentation is to sample $\tilde{Y}_{ijk}$ for $i \in (G_j^{\rm obs}, G_j^{\rm obs}+1, \hdots, G_j)$.  To do this, we first sample ....
+Estimation of remaining model parameters (conditional on a set level of abundance)  proceeded by cyclical sampling of model parameters from their full conditional distributions \cite{GelmanEtAl2004}.  In particular, we employed a combination of Gibbs, Metropolis-Hastings, and Langevin-Hastings \cite{RobertCasella2004} steps for posterior simulation.  For Metropols-Hastings steps, candidate parameter values were sampled from uniform distributions centered at the previous iterations parameter value and with a range chosen to achieve an acceptance rate of 30-40\% as suggested by Gelman Et Al. \cite{GelmanEtAl2004}.  For Langevin-Hastings steps, proposal vectors dependent on the parameter vector at the previous iteration, as well as the gradient of the joint full conditional distribution evaluated at the current set of parameter values.
 
-Estimation of other model parameters (conditional on a set level of abundance)  proceeded by cyclical sampling of model parameters from their full conditional distributions \cite{GelmanEtAl2004}.  In particular, we employed a combination of Gibbs, Metropolis-Hastings, and Langevin-Hastings steps for posterior simulation.  For Metropols-Hastings steps, candidate parameter values were sampled from uniform distributions centered at the previous iterations parameter value and with a range chosen to achieve an acceptance rate of 30-40\% as suggested by Gelman Et Al. \cite{GelmanEtAl2004}.  For Langevin-Hastings steps, proposals were generated using ....  For full details on the full conditional distributions used within estimation, we refer the interested reader to supplemental Text S1.
+\subsubsection*{Sampling $\boldsymbol{\beta}^{\rm hab}$}
 
-We developed generalized computing code to conduct MCMC estimation, which we implemented in the R programming environment \cite{RTeam2006}.  This code has been incorporated into the R package, \emph{dspat} \cite{JohnsonEtAl2010}.  The package, which includes help files and several examples, is available as Dataset S1.
+The full conditional distribution for $[\boldsymbol{\beta}^{\rm hab}|\hdots]$ (the conditional distribution of $\boldsymbol{\beta}^{\rm hab}$ given all other parameters is given by
+$$
+    [\boldsymbol{\nu} | \boldsymbol{\beta}^{\rm hab},{\bf X}^{hab},\boldsymbol{\eta}][\boldsymbol{\beta}^{\rm hab}]\propto[\boldsymbol{\nu} | \boldsymbol{\beta}^{\rm hab},{\bf X}^{hab},\boldsymbol{\eta}],
+$$
+where $ [\boldsymbol{\nu} | \boldsymbol{\beta}^{\rm hab},{\bf X}^{hab},\boldsymbol{\eta}]$
+is the product normal likelihood
+\begin{equation} \label{eq:nu.lik}
+{\rm Normal}(\boldsymbol{\nu};{\bf X}^{\rm hab} \boldsymbol{\beta}^{\rm hab} +\boldsymbol{\eta},\tau_\eta^{-1}{\bf I}).
+\end{equation}
+Rewriting Eq. \ref{eq:nu.lik} as
+$$
+{\rm Normal}(\boldsymbol{\nu}-\boldsymbol{\eta};{\bf X}^{\rm hab}\boldsymbol{\beta}^{\rm hab} ,\tau_\eta^{-1}{\bf I})
+$$
+makes it into a standard linear regression formula. We may
+thus use Gibbs sampling to sample directly from $[\boldsymbol{\beta}^{\rm hab}|\hdots]$ (e.g., \cite{GelmanEtAl2004}, chapter 14), using
+\begin{equation}
+\label{eq:beta.post}
+[\boldsymbol{\beta}^{\rm hab}|\hdots]={\rm Normal}(({\bf X}^\prime {\bf X})^{-1}{\bf X}^\prime (\boldsymbol{\nu}-\boldsymbol{\eta}),\tau_\nu^{-1}({\bf X}^\prime {\bf X})^{-1})
+\end{equation}
+(temporarily replacing ${\bf X}^{\rm hab}$ with ${\bf X}$).
+
+\subsubsection*{Sampling $\boldsymbol{\eta}$}
+
+We employed a similar strategy to sample from  $[\boldsymbol{\eta}|\hdots]$.  In this case, we
+rewrite Eq. \ref{eq:nu.lik} as
+$$
+{\rm Normal}(\boldsymbol{\nu}-{\bf X}^{\rm hab}\boldsymbol{\beta}^{\rm hab};\boldsymbol{\eta} ,\tau_\nu^{-1}{\bf I}).
+$$
+In this case, the ``data" are $(\boldsymbol{\nu}-{\bf X}^{\rm hab}\boldsymbol{\beta}^{\rm hab})$, while the regression parameters are $\boldsymbol{\eta}$ with an identity design matrix. However, the prior precision of $\boldsymbol{\eta}$ is ${\bf Q}^{-1}$, so that
+$$
+[\boldsymbol{\eta}|\hdots] = {\rm Normal}({\bf V}_\eta \tau_\nu (\boldsymbol{\nu}-{\bf X}^{\rm hab}\boldsymbol{\beta}^{\rm hab}),{\bf V}_\eta),
+$$
+where
+$$
+{\bf V}_\eta=(\tau_\nu{\bf I} + {\bf Q})^{-1}.
+$$
+This distribution may be sampled directly via Gibbs sampling. Owing to the sparse nature of ${\bf Q}$, we increased computational efficiency by utilizing numerical routines specifically formulated for sparse matrices (see Dataset S1).
+
+\subsubsection*{Sampling $\tau_\eta$}
+Given a $\textrm{Gamma}(\alpha_\eta,\beta_\eta)$ prior, $\tau_\eta$ may be directly sampled using
+$$
+\tau_\eta \sim \textrm{Gamma}\left( 0.5(S-1)+\alpha_\eta,0.5\boldsymbol{\eta}^\prime {\bf Q} \boldsymbol{\eta}+\beta_\eta \right)
+$$
+
+\subsubsection*{Sampling $\boldsymbol{\nu}$}
+We simultaneously updated the entire vector $\boldsymbol{\nu}$ using a Langevin-Hastings algorithm \cite{RobertCasella2004}.  The Langevin-Hastings algorithm utilizes the numerical gradient of the full conditional distribution to make more efficient proposals, which are accepted or rejected based on a modified Metropolis ratio.  The full conditional distribution for $\boldsymbol{\nu}$ needed to perform Langevin-Hastings updates is given by
+$$
+\left[ \boldsymbol{\nu} | \hdots \right] = \textrm{Normal}\left(\boldsymbol{\nu};{\bf X}^{\rm hab}\boldsymbol{\beta}^{\rm hab}+\boldsymbol{\eta},\tau_\nu^{-1} {\bf I} \right) \prod_{i=1}^S \textrm{Poisson} \left( G_i; \exp(\nu_i) \right),
+$$
+where {\bf I} is the $S\times S$ identity matrix.
+
+\subsubsection*{Sampling $\tau_\nu$}
+As with $\tau_\eta$, $\tau_\nu$ may be directly sampled using
+$$
+\tau_\nu \sim \textrm{Gamma}\left( 0.5S+\alpha_\nu,0.5\boldsymbol{\mu}_\nu^\prime \boldsymbol{\mu}_\nu+\beta_\nu \right),
+$$
+where $\boldsymbol{\mu}_\nu={\bf X}^{\rm hab}\boldsymbol{\beta}^{\rm hab}+\boldsymbol{\eta}$.
+
+\subsubsection*{Sampling $\boldsymbol{\beta}^{\rm det}$}
+
+Using Eq. \ref{eq:biv_to_univ} to transform bivariate responses into univariate responses when necessary, i.e.,
+$$
+\acute{Y}_{ijk}= 
+    \left\{ \begin{array}{lll}
+				\tilde{Y}_{ijk} & & O_j=1\\
+			    \tilde{Y}_{ijk}-\rho_{ij}\tilde{Y}_{ij,3-k} & & O_j=2
+		\end{array}, \right.
+$$
+we loosely arrive at the model
+$$
+\acute{{\bf Y}} \sim {\rm Normal}({\bf X} \boldsymbol{\beta}^{\rm det},\boldsymbol{\Sigma}),
+$$
+where ${\bf X}={\bf X}^{\rm det}$ if $O_j=1$ and 
+$$
+{\bf X}=\left[ \begin{array}{l}
+    {\bf X}_1^{\rm det} - \rho {\bf X}_2^{\rm det} \\
+    {\bf X}_2^{\rm det} - \rho {\bf X}_1^{\rm det} 
+    \end{array}
+    \right]
+$$  
+if $O_j=2$ (Here, ${\bf X}_k^{\rm det}$ designates the design matrix for the $k$th observer).
+Also, $\boldsymbol{\Sigma}$ is a diagonal matrix with entries corresponding to $1-\rho_{ij}^2$ for each response variable.  Under this formulation, we can use basic Gibbs sampling for regression with a known covariance matrix (e.g., \cite{GelmanEtAl2004}, Eqs. 14.11-14.12) to sample from $[\boldsymbol{\beta}^{\rm det}|\hdots]$.  In particular,
+$$
+[\boldsymbol{\beta}^{\rm det}|\hdots]=\textrm{Normal}\left( ({\bf X}^\prime \boldsymbol{\Sigma}^{-1} {\bf X})^{-1}{\bf X}^\prime \boldsymbol{\Sigma}^{-1} \acute{{\bf Y}},
+({\bf X}^\prime \boldsymbol{\Sigma}^{-1} {\bf X})^{-1} \right).
+$$
+
+
+
+\subsubsection*{Sampling $\rho$}
+
+Letting $\xi$ denote the set of transects for which $O_j=2$ (i.e., the set for which there were two observers present), we used a Metropolis-Hastings step to update $\rho$.  The full conditional distribution for this update is given by
+$$
+  [\rho|\hdots] \propto \left[ \prod_{j \in \xi} \prod_{i=1}^{G_{ij}} 
+  \{ 
+(1-\rho_{ij}^2)\exp\left(
+(1-\rho_{ij}^2)^{-1} (\Delta_{ij1}^2+\Delta_{ij2}^2-2\rho_{ij}\Delta_{ij1}\Delta_{ij2})
+  \right)   
+  \} 
+  \right]^{-0.5},
+$$
+where $\Delta_{ijk}=\tilde{Y}_{ijk}-[{\bf X}^{\rm det} \boldsymbol{\beta}]_{ijk}$. 
+
+\subsubsection*{Sampling $\tilde{\bf Y}$}
+
+For animals currently in the population (i.e., for $i \in [1,2,\hdots,G_j]$), the full conditional distribution $[ \tilde{Y}_{ijk} | \hdots]$ is a truncated normal, and may be sampled directly.  If $Y_{ijk}=0$, $\tilde{Y}_{ijk}$ is drawn from a normal distribution with the constraint that $\tilde{Y}_{ijk}<0$, while $\tilde{Y}_{ijk}>0$ if $Y_{ijk}=1$.  The corresponding untruncated distribution is given by
+$$
+\tilde{Y}_{ijk} \sim \textrm{Normal} \left( [{\bf X}^{\rm det} \boldsymbol{\beta}^{\rm det}]_{ijk},1  \right)
+$$
+when $O_j=1$, and
+$$
+\tilde{Y}_{ijk} \sim \textrm{Normal} \left( [{\bf X}^{\rm det} \boldsymbol{\beta}^{\rm det}]_{ijk}+\rho_{ij}(\tilde{Y}_{ij,3-k}-[{\bf X}^{\rm det} \boldsymbol{\beta}^{\rm det}]_{ij,3-k}),1-\rho_{ij}^2  \right)
+$$
+when $O_j=2$.
+
+\subsubsection*{Sampling $\boldsymbol{\theta}, \boldsymbol{\epsilon}$}
+
+If random effects are not specified (i.e., $\epsilon_{ijk}=0$ $\forall$ $\{i,j,k\}$), specification of conjugate priors for the Poisson, zero-truncated Poisson, and multinomial distributions meant that full conditionals were available in closed form and could be simulated directly.  If random effects are specified, both the parameters of the underlying distribution (i.e., $\boldsymbol{\theta}$) and the random effects themselves (i.e., $\boldsymbol{\epsilon}$)
+are sampled via the Metropolis-Hastings algorithm.  Owing to the relatively large number of individual covariate distributions, we refer the reader to Dataset S1 for further details. 
+
+\subsubsection*{Computing}
+
+We developed generalized computing code to conduct MCMC estimation, which we implemented in the R programming environment \cite{RTeam2007}.  This code has been incorporated into the R package, \emph{dspat} \cite{JohnsonEtAl2010}.  The package, which includes code, help files, and an example analysis, is available as Dataset S1.
 
 \section*{Examples}
 \subsection*{Simulated data}

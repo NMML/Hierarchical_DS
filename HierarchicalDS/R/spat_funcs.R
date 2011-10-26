@@ -49,10 +49,13 @@ switch_sample_prior<-function(pdf,cur.par){
 #' @author Paul B. Conn
 stack_data<-function(Data,G.transect,n.transects,stacked.names,factor.ind){
 	#convert from "sparse" 3-d data augmentation array to a rich 2-d dataframe for updating beta parameters 
-	Stacked=as.data.frame(Data[1,1:G.transect[1],])
-	for(itrans in 2:n.transects){
-		Stacked=rbind(Stacked,Data[itrans,1:G.transect[itrans],])
+	max.G=max(G.transect)[1]
+	max.id=which(G.transect==max.G)[1]
+	Stacked=as.data.frame(Data[max.id,1:max.G,])
+	for(itrans in 1:n.transects){
+		if(G.transect[itrans]>0)Stacked=rbind(Stacked,Data[itrans,1:G.transect[itrans],])
 	}
+	Stacked=Stacked[-c(1:max.G),]
 	colnames(Stacked)=stacked.names	#gotta reestablish variable type since 3-d array doesn't hold it
 	factor.cols=which(factor.ind[stacked.names]==TRUE) 
 	if(length(factor.cols)>0){
@@ -114,7 +117,7 @@ generate_inits<-function(DM.hab,DM.det,G.transect,Area.trans,Area.hab,Mapping,po
 #' @param index 	which element to compute the derivative for (for use with apply functions)
 #' @param Mu	expected value 
 #' @param Nu	current observed value	
-#' @param N	    number of groups in each transect
+#' @param N	    number of groups in area
 #' @param var.nu	variance of the overdispersion process
 #' @return a gradient value
 #' @export
@@ -130,7 +133,7 @@ log_lambda_gradient<-function(index,Mu,Nu,N,var.nu){
 #' @param Beta	linear predictor parameters for the log of abundance intensity	
 #' @param Eta	a vector of spatial random effects
 #' @param SD	standard deviation of the overdispersion process
-#' @param N		a vector giving the current iteration's number of groups in the area covered by each transect
+#' @param N		a vector giving the current iteration's number of groups in the area 
 #' @return the log likelihood associated with the data and the current set of parameters 
 #' @export
 #' @keywords log likelihood

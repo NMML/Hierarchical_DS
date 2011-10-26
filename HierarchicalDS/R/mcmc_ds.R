@@ -114,11 +114,11 @@ mcmc_ds<-function(Par,Data,cur.iter,adapt,Control,DM.hab,DM.det,Q,Prior.pars,Met
 		
 		#update nu parameters (log lambda)
 		Mu=DM.hab%*%Par$hab+Par$Eta
-		Grad1=sapply(Lam.index,'log_lambda_gradient',Mu=Mu,Nu=Par$Nu,N=Meta$G.transect,var.nu=1/Par$tau.nu)
+		Grad1=sapply(Lam.index,'log_lambda_gradient',Mu=Mu,Nu=Par$Nu,N=Par$G,var.nu=1/Par$tau.nu)
 		Prop=Par$Nu+Control$MH.nu^2*0.5*Grad1+Control$MH.nu*rnorm(Meta$S)
-		new.post=log_lambda_log_likelihood(Log.lambda=Prop,DM=DM.hab,Beta=Par$hab,SD=sqrt(1/Par$tau.nu),N=Meta$G.transect)
-		old.post=log_lambda_log_likelihood(Log.lambda=Par$Nu,DM=DM.hab,Beta=Par$hab,SD=sqrt(1/Par$tau.nu),N=Meta$G.transect)
-		Grad2=sapply(Lam.index,'log_lambda_gradient',Mu=Mu,Nu=Prop,N=Meta$G.transect,var.nu=1/Par$tau.nu)
+		new.post=log_lambda_log_likelihood(Log.lambda=Prop,DM=DM.hab,Beta=Par$hab,SD=sqrt(1/Par$tau.nu),N=Par$G)
+		old.post=log_lambda_log_likelihood(Log.lambda=Par$Nu,DM=DM.hab,Beta=Par$hab,SD=sqrt(1/Par$tau.nu),N=Par$G)
+		Grad2=sapply(Lam.index,'log_lambda_gradient',Mu=Mu,Nu=Prop,N=Par$G,var.nu=1/Par$tau.nu)
 		diff1=as.vector(Par$Nu-Prop-0.5*Control$MH.nu^2*Grad2)	
 		diff2=as.vector(Prop-Par$Nu-0.5*Control$MH.nu^2*Grad1)
 		log.jump=0.5/Control$MH.nu^2*(sqrt(crossprod(diff1,diff1))-sqrt(crossprod(diff2,diff2))) #ratio of jumping distributions using e.g. Robert and Casella 2004 p. 319	
@@ -146,7 +146,7 @@ mcmc_ds<-function(Par,Data,cur.iter,adapt,Control,DM.hab,DM.det,Q,Prior.pars,Met
 		
 		#translate to lambda scale
 		Lambda=Meta$Area.hab*exp(Par$Nu)
-		Lambda.trans=Lambda[Meta$Mapping]
+		Lambda.trans=Lambda[Meta$Mapping]*Meta$Area.trans
 		
 		#update Betas for habitat relationships
 		for(ipar in 1:length(Par$hab)){
@@ -193,7 +193,7 @@ mcmc_ds<-function(Par,Data,cur.iter,adapt,Control,DM.hab,DM.det,Q,Prior.pars,Met
 					for(i in 1:a){
 						tmp.sum=tmp.sum-log(Meta$G.transect[itrans]-G.obs[itrans]+i)+log(P[i])
 					}
-					MH.prob=exp(a*log(Lambda.trans[itrans]*Meta$Area.trans[itrans])+tmp.sum)
+					MH.prob=exp(a*log(Lambda.trans[itrans])+tmp.sum)
 					if(runif(1)<MH.prob){
 						Meta$G.transect[itrans]=Meta$G.transect[itrans]+a
 						n.Records[itrans]=Meta$G.transect[itrans]*Meta$n.Observers[itrans]
@@ -226,7 +226,7 @@ mcmc_ds<-function(Par,Data,cur.iter,adapt,Control,DM.hab,DM.det,Q,Prior.pars,Met
 					for(i in 1:-a){
 						tmp.sum=tmp.sum+log(Meta$G.transect[itrans]-G.obs[itrans]-i+1)-log(P[i])
 					}
-					MH.prob=exp(a*log(Lambda.trans[itrans]*Meta$Area.trans[itrans])+tmp.sum)
+					MH.prob=exp(a*log(Lambda.trans[itrans])+tmp.sum)
 					if(runif(1)<MH.prob){
 						Meta$G.transect[itrans]=Meta$G.transect[itrans]+a
 						n.Records[itrans]=Meta$G.transect[itrans]*Meta$n.Observers[itrans]
@@ -361,7 +361,7 @@ mcmc_ds<-function(Par,Data,cur.iter,adapt,Control,DM.hab,DM.det,Q,Prior.pars,Met
 			}
 		}
 		#now use basic matrix equations from Gelman '04 book (14.11 14.12) to update beta parms
-		Sig.inv=sqrt(1-Cor^2)  #for use in eq. 14.11, 14.12 of Gelman et al.; don't need a matrix since it would be diagonal
+		Sig.inv=1/(1-Cor^2)  #for use in eq. 14.11, 14.12 of Gelman et al.; don't need a matrix since it would be diagonal
 		V.inv <- crossprod(X.beta,Sig.inv*X.beta) 	
 		M.z <- solve(V.inv, crossprod(X.beta,Sig.inv*Y.beta))
 		Par$det <- M.z + solve(chol(V.inv), rnorm(n.beta.det,0,1))

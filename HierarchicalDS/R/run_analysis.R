@@ -4,9 +4,9 @@
 #' @keywords simulation
 #' @author Paul B. Conn
 run_analysis=function(){
-	S=10
+	S=30
 	Dat=simulate_data(S=S) 
-	Dat=Dat[,-8]
+	#Dat=Dat[,-8] uncomment if not modeling species effect
 	n.bins=length(unique(Dat[,6]))
 	Adj=matrix(0,S,S)
 	for(i in 2:S){
@@ -21,25 +21,29 @@ run_analysis=function(){
 	colnames(Hab.cov)="Cov1"
 	n.obs.cov=1  #dummy 'seat' variable
 	Hab.formula=~Cov1
-	Det.formula=~Observer+Seat+Distance+Group
-	#Det.formula=~Observer+Seat+Distance+Group+Species
-	#Cov.prior.pdf=c("pois1_ln","multinom")
-	#Cov.prior.parms=matrix(c(1.1,1,1,0,1,1,1,1),4,2)
-	#Cov.prior.fixed=c(0,0)
-	Cov.prior.pdf="pois1_ln"
-	Cov.prior.parms=matrix(c(1.1,1,1),3,1)
-	Cov.prior.fixed=0
-	#colnames(Cov.prior.parms)=c("Group","Species")
-	colnames(Cov.prior.parms)="Group"
+	#Det.formula=~Observer+Seat+Distance+Group
+	Det.formula=~Observer+Seat+Distance+Group+Species
+	Cov.prior.pdf=c("pois1_ln","multinom")
+	Cov.prior.parms=matrix(c(1.1,1,1,0,1,1,1,1),4,2)
+	Cov.prior.fixed=c(0,0)
+	#Cov.prior.pdf="pois1_ln"
+	#Cov.prior.parms=matrix(c(1.1,1,1),3,1)
+	#Cov.prior.fixed=0
+	#Cov.prior.pdf="pois1"
+	#Cov.prior.parms=matrix(3,1,1)
+	#Cov.prior.fixed=1
+	colnames(Cov.prior.parms)=c("Group","Species")
+	#colnames(Cov.prior.parms)="Group"
 	pol.eff=2 #not currently used since using distance bins
 	point.ind=TRUE
 	spat.ind=TRUE  #dont' include spatial dependence unless there really is spatial structure!
 	grps=TRUE
-	M=c(30,50,60,80,90,100,110,120,130,140)
-	Control=list(iter=25000,burnin=5000,thin=5,MH.cor=0.05,MH.nu=.01,MH.beta=c(.2,.4),RJ.N=rep(5,S),adapt=5000)
+	#M=c(30,50,60,80,90,100,110,120,130,140)
+	M=c(1:30)*10
+	Control=list(iter=21000,burnin=1000,thin=5,MH.cor=0.2,MH.nu=.01,MH.beta=c(.2,.4),RJ.N=rep(5,S),adapt=1000)
 	Inits=NULL
 	Prior.pars=list(a.eta=1,b.eta=.01,a.nu=1,b.nu=.01,beta.sd=c(10000,100)) #(1,.01) prior makes it closer to a uniform distribution near the origin
 	adapt=TRUE
 	
-	Out=hierarchical_DS(Dat=Dat,Adj=Adj,Area.hab=Area.hab,Mapping=Mapping,Area.trans=Area.trans,Bin.length=Bin.length,Hab.cov=Hab.cov,n.obs.cov=n.obs.cov,Hab.formula=Hab.formula,Det.formula=Det.formula,Cov.prior.pdf=Cov.prior.pdf,Cov.prior.parms=Cov.prior.parms,Cov.prior.fixed=Cov.prior.fixed,pol.eff=NULL,point.ind=TRUE,spat.ind=FALSE,Inits=NULL,grps=grps,M=M,Control=Control,adapt=TRUE,Prior.pars=Prior.pars)
+	Out=hierarchical_DS(Dat=Dat,Adj=Adj,Area.hab=Area.hab,Mapping=Mapping,Area.trans=Area.trans,Bin.length=Bin.length,Hab.cov=Hab.cov,n.obs.cov=n.obs.cov,Hab.formula=Hab.formula,Det.formula=Det.formula,Cov.prior.pdf=Cov.prior.pdf,Cov.prior.parms=Cov.prior.parms,Cov.prior.fixed=Cov.prior.fixed,pol.eff=NULL,point.ind=TRUE,spat.ind=spat.ind,Inits=NULL,grps=grps,M=M,Control=Control,adapt=TRUE,Prior.pars=Prior.pars)
 }
