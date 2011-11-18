@@ -4,7 +4,7 @@
 #' @keywords simulation
 #' @author Paul B. Conn
 run_analysis=function(){
-	S=30
+	S=10
 	Dat=simulate_data(S=S) 
 	#Dat=Dat[,-8] uncomment if not modeling species effect
 	n.bins=length(unique(Dat[,6]))
@@ -23,8 +23,8 @@ run_analysis=function(){
 	Hab.formula=~Cov1
 	#Det.formula=~Observer+Seat+Distance+Group
 	Det.formula=~Observer+Seat+Distance+Group+Species
-	Cov.prior.pdf=c("pois1_ln","multinom")
-	Cov.prior.parms=matrix(c(1.1,1,1,0,1,1,1,1),4,2)
+	Cov.prior.pdf=c("pois1","multinom")
+	Cov.prior.parms=matrix(c(3,1,1,0,1,1,1,1),4,2)
 	Cov.prior.fixed=c(0,0)
 	#Cov.prior.pdf="pois1_ln"
 	#Cov.prior.parms=matrix(c(1.1,1,1),3,1)
@@ -38,9 +38,9 @@ run_analysis=function(){
 	point.ind=TRUE
 	spat.ind=TRUE  #dont' include spatial dependence unless there really is spatial structure!
 	grps=TRUE
-	#M=c(30,50,60,80,90,100,110,120,130,140)
-	M=c(1:30)*10
-	Control=list(iter=21000,burnin=1000,thin=5,MH.cor=0.2,MH.nu=.01,MH.beta=c(.2,.4),RJ.N=rep(5,S),adapt=1000)
+	M=c(30,50,60,80,90,100,110,120,130,140)
+	#M=c(1:30)*10
+	Control=list(iter=21000,burnin=1000,thin=5,MH.cor=0.2,MH.nu=.01,MH.beta=c(.2,.4),RJ.N=rep(5,S),adapt=500)
 	Inits=NULL
 	Prior.pars=list(a.eta=1,b.eta=.01,a.nu=1,b.nu=.01,beta.sd=c(10000,100)) #(1,.01) prior makes it closer to a uniform distribution near the origin
 	adapt=TRUE
