@@ -145,3 +145,91 @@ log_lambda_log_likelihood<-function(Log.lambda,DM,Beta,Eta=0,SD,N){
 	return(logL)
 } 	
 
+#' SIMULATE AN ICAR PROCESS 
+#' @param Q Precision matrix for the ICAR process
+#' @return Spatial random effects
+#' @export 
+#' @keywords ICAR, simulation
+#' @author Devin Johnson
+rrw <- function(Q){
+	v <- eigen(Q, TRUE)
+	val.inv <- sqrt(ifelse(v$values>sqrt(.Machine$double.eps), 1/v$values, 0))
+	P <- v$vectors
+	sim <- P%*%diag(val.inv)%*%rnorm(dim(Q)[1], 0, 1)
+	X <- rep(1,length(sim))
+	if(sum(val.inv==0)==2) X <- cbind(X, 1:length(sim))
+	sim <- sim-X%*%solve(crossprod(X), crossprod(X,sim))
+	return(sim)
+}
+
+#' Produce an adjacency matrix for a square grid
+#' @param x number of cells on side of grid
+#' @return adjacency matrix
+#' @export 
+#' @keywords adjacency
+#' @author Paul Conn
+square_adj <- function(x){
+	Ind=matrix(c(1:x^2),x,x)
+	Adj=matrix(0,x^2,x^2)
+	for(i in 1:x){
+		for(j in 1:x){
+			if(i==1 & j==1){
+				Adj[Ind[i,j],Ind[i,j]+1]=1
+				Adj[Ind[i,j],Ind[i,j]+x]=1
+				Adj[Ind[i,j],Ind[i,j]+x+1]=1
+			}
+			if(i==1 & j>1 & j<x){
+				Adj[Ind[i,j],Ind[i,j]+1]=1
+				Adj[Ind[i,j],Ind[i,j]+x]=1
+				Adj[Ind[i,j],Ind[i,j]-x]=1
+				Adj[Ind[i,j],Ind[i,j]+x+1]=1
+				Adj[Ind[i,j],Ind[i,j]-x+1]=1
+			}
+			if(i==1 & j==x){
+				Adj[Ind[i,j],Ind[i,j]+1]=1
+				Adj[Ind[i,j],Ind[i,j]-x]=1	
+				Adj[Ind[i,j],Ind[i,j]-x+1]=1
+			}
+			if(i>1 & i<x & j==1){
+				Adj[Ind[i,j],Ind[i,j]+1]=1
+				Adj[Ind[i,j],Ind[i,j]+x]=1
+				Adj[Ind[i,j],Ind[i,j]-1]=1
+				Adj[Ind[i,j],Ind[i,j]+x-1]=1
+				Adj[Ind[i,j],Ind[i,j]+x+1]=1
+			}
+			if(i>1 & i<x & j>1 & j<x){
+				cur.nums=c(Ind[i,j]-x-1,Ind[i,j]-x,Ind[i,j]-x+1,Ind[i,j]-1,Ind[i,j]+1,Ind[i,j]+x-1,Ind[i,j]+x,Ind[i,j]+x+1)
+				Adj[Ind[i,j],cur.nums]=1
+			}
+			if(i>1 & i<x & j==x){
+				Adj[Ind[i,j],Ind[i,j]+1]=1
+				Adj[Ind[i,j],Ind[i,j]-x]=1
+				Adj[Ind[i,j],Ind[i,j]-1]=1	
+				Adj[Ind[i,j],Ind[i,j]-x-1]=1
+				Adj[Ind[i,j],Ind[i,j]-x+1]=1
+				
+			}
+			if(i==x & j==1){
+				Adj[Ind[i,j],Ind[i,j]+x]=1
+				Adj[Ind[i,j],Ind[i,j]-1]=1	
+				Adj[Ind[i,j],Ind[i,j]+x-1]=1
+			}
+			if(i==x & j>1 & j<x){
+				Adj[Ind[i,j],Ind[i,j]+x]=1
+				Adj[Ind[i,j],Ind[i,j]-1]=1								
+				Adj[Ind[i,j],Ind[i,j]-x]=1
+				Adj[Ind[i,j],Ind[i,j]+x-1]=1
+				Adj[Ind[i,j],Ind[i,j]-x-1]=1
+			}
+			if(i==x & j==x){
+				Adj[Ind[i,j],Ind[i,j]-1]=1								
+				Adj[Ind[i,j],Ind[i,j]-x]=1
+				Adj[Ind[i,j],Ind[i,j]-x-1]=1
+			}				
+		}
+	}
+	return(Adj)
+}
+
+
+

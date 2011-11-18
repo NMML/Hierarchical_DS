@@ -242,7 +242,7 @@ In practice, an equivalent reparameterization of this model greatly simplifies p
 \right).
 \end{equation}
 Under this parameterization, constraining $Y_{ijk}=1$ if and only if $\tilde{Y}_{ijk}>0$ results in the same probit-Bernoulli model as assumed previously.
-If there are multiple observers, conditioning on one value of $\tilde{Y}$ reduces the probability density from a bivariate to a univariate distribution.  Following Tabet \cite{Tabet2007},
+If there are multiple observers, conditioning on one value of $\tilde{Y}$ reduces the probability density from a bivariate to a univariate distribution.  In particular,
 \begin{equation}
 \label{eq:biv_to_univ}
 [\tilde{Y}_{ij1} | \tilde{Y}_{ij2},\beta^{\rm hab},\rho_{ij}]={\rm Normal}(\mu_{ij1}+\rho_{ij}(\tilde{Y}_{ij2}-\mu_{ij2}),1-\rho_{ij}^2),
@@ -395,7 +395,7 @@ where $\boldsymbol{\mu}_\nu={\bf X}^{\rm hab}\boldsymbol{\beta}^{\rm hab}+\bolds
 
 Using Eq. \ref{eq:biv_to_univ} to transform bivariate responses into univariate responses when necessary, i.e.,
 $$
-\acute{Y}_{ijk}= 
+\acute{Y}_{ijk}=
     \left\{ \begin{array}{lll}
 				\tilde{Y}_{ijk} & & O_j=1\\
 			    \tilde{Y}_{ijk}-\rho_{ij}\tilde{Y}_{ij,3-k} & & O_j=2
@@ -405,14 +405,14 @@ we loosely arrive at the model
 $$
 \acute{{\bf Y}} \sim {\rm Normal}({\bf X} \boldsymbol{\beta}^{\rm det},\boldsymbol{\Sigma}),
 $$
-where ${\bf X}={\bf X}^{\rm det}$ if $O_j=1$ and 
+where ${\bf X}={\bf X}^{\rm det}$ if $O_j=1$ and
 $$
 {\bf X}=\left[ \begin{array}{l}
     {\bf X}_1^{\rm det} - \rho {\bf X}_2^{\rm det} \\
-    {\bf X}_2^{\rm det} - \rho {\bf X}_1^{\rm det} 
+    {\bf X}_2^{\rm det} - \rho {\bf X}_1^{\rm det}
     \end{array}
     \right]
-$$  
+$$
 if $O_j=2$ (Here, ${\bf X}_k^{\rm det}$ designates the design matrix for the $k$th observer).
 Also, $\boldsymbol{\Sigma}$ is a diagonal matrix with entries corresponding to $1-\rho_{ij}^2$ for each response variable.  Under this formulation, we can use basic Gibbs sampling for regression with a known covariance matrix (e.g., \cite{GelmanEtAl2004}, Eqs. 14.11-14.12) to sample from $[\boldsymbol{\beta}^{\rm det}|\hdots]$.  In particular,
 $$
@@ -426,15 +426,15 @@ $$
 
 Letting $\xi$ denote the set of transects for which $O_j=2$ (i.e., the set for which there were two observers present), we used a Metropolis-Hastings step to update $\rho$.  The full conditional distribution for this update is given by
 $$
-  [\rho|\hdots] \propto \left[ \prod_{j \in \xi} \prod_{i=1}^{G_{ij}} 
-  \{ 
+  [\rho|\hdots] \propto \left[ \prod_{j \in \xi} \prod_{i=1}^{G_{ij}}
+  \{
 (1-\rho_{ij}^2)\exp\left(
 (1-\rho_{ij}^2)^{-1} (\Delta_{ij1}^2+\Delta_{ij2}^2-2\rho_{ij}\Delta_{ij1}\Delta_{ij2})
-  \right)   
-  \} 
+  \right)
+  \}
   \right]^{-0.5},
 $$
-where $\Delta_{ijk}=\tilde{Y}_{ijk}-[{\bf X}^{\rm det} \boldsymbol{\beta}]_{ijk}$. 
+where $\Delta_{ijk}=\tilde{Y}_{ijk}-[{\bf X}^{\rm det} \boldsymbol{\beta}]_{ijk}$.
 
 \subsubsection*{Sampling $\tilde{\bf Y}$}
 
@@ -451,14 +451,21 @@ when $O_j=2$.
 \subsubsection*{Sampling $\boldsymbol{\theta}, \boldsymbol{\epsilon}$}
 
 If random effects are not specified (i.e., $\epsilon_{ijk}=0$ $\forall$ $\{i,j,k\}$), specification of conjugate priors for the Poisson, zero-truncated Poisson, and multinomial distributions meant that full conditionals were available in closed form and could be simulated directly.  If random effects are specified, both the parameters of the underlying distribution (i.e., $\boldsymbol{\theta}$) and the random effects themselves (i.e., $\boldsymbol{\epsilon}$)
-are sampled via the Metropolis-Hastings algorithm.  Owing to the relatively large number of individual covariate distributions, we refer the reader to Dataset S1 for further details. 
+are sampled via the Metropolis-Hastings algorithm.  Owing to the relatively large number of individual covariate distributions, we refer the reader to Dataset S1 for further details.
 
 \subsubsection*{Computing}
 
 We developed generalized computing code to conduct MCMC estimation, which we implemented in the R programming environment \cite{RTeam2007}.  This code has been incorporated into the R package, \emph{dspat} \cite{JohnsonEtAl2010}.  The package, which includes code, help files, and an example analysis, is available as Dataset S1.
 
 \section*{Examples}
+
 \subsection*{Simulated data}
+
+We generated a simulated dataset and analyzed it with our hierarchical model to ensure that model parameters could be properly identified and that abundance estimates were reasonable.  The log of abundance intensity was simulated on a 15 by 15 grid assuming a positive relationship with latitude and spatially correlated error induced via an ICAR process with precision parameter $\tau_\nu=3$ (Fig. \ref{fig:sim_landscape}).  A total of 15 transects were simulated at the longitudinal midpoints of grid cells; latitudinal placement was uniformly distributed   The width of each transect was assumed to encompass 25\% of each grid cell.
+
+After laying down virtual transects, we simulated group abundance and species composition for each transect-grid cell combination.  The group size for group $i$ of transect $j$ was set to $(1+W_{ij})$, where $W_{ij} \sim \textrm{Poisson}(3)$, while species was drawn from a $\textrm{multinomial}(0.1,0.2,0.3,0.4)$ distribution (assuming four possible species).
+Detection data were simulated by applying an assumed detection function that was a function of multiple covariates.  Odd numbered transects were allotted two observers, while even numbered transects were allotted one observer; in all cases, observers were picked randomly from a pool of 3 total observers with different underlying detection probabilities.  The assumed detection function was made to be a function of observer, distance, species, and group size.  If multiple observers were present, correlation between observers was modeled as a linearly increasing function of distance on the probit scale, with a maximum value of 0.5 (at the farthest distance bin).  Distances were recorded as one of 5 equally spaced bins.
+
 \subsection*{Ice seals in the Bering Sea}
 
 We collected data from line transect seal surveys conducted from a ??? helicopter operating from the U.S. Coast Guard icebreaker {\it Polar Sea} in June and July, 2008 (?).  The helicopter crew consisted of a pilot and three observers; two of the observers were located on the right (?) side of the vessel, thus providing double observer data, while another observer searched for seals on the left side of the plane.

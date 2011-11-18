@@ -1,12 +1,14 @@
 #' function to simulate distance sampling data from simple model with increasing abundance
 #' intensity, no assumed spatial structure, and point independence
 #' @param S number of spatial strata (a single transect is placed in each strata and assumed to cover the whole strata)
+#' @param Observers A (2 x S) matrix giving the observer identity for each transect
 #' @return a distance sampling dataset
 #' @export
 #' @keywords distance sampling, simulation
 #' @author Paul B. Conn
-simulate_data<-function(S){
+simulate_data<-function(S,Observers){
 	require(mvtnorm)
+	set.seed(123456)
 	#S=10 #number of sites
 	
 	#process parameters
@@ -31,35 +33,37 @@ simulate_data<-function(S){
 	X=rep(0,length(Beta.det))
 	pl=1
 	for(i in 1:S){
-		Observers=sample(c(1:3),2)
-		for(j in 1:N[i]){
-			X1=X
-			X2=X
-			X1[Observers[1]]=1
-			X2[Observers[2]]=1
-			Dat[pl,1]=i
-			Dat[pl,2]=Observers[1]
-			Dat[pl,3]=Observers[2]
-			Dat[pl,6]=sample(c(1:n.bins),1)
-			Dat[pl,7]=rpois(1,lambda.grp)+1
-			cur.sp=sample(c(1,2,3,4),1,prob=Species.prop)
-			Dat[pl,8]=cur.sp
-			if(Dat[pl,6]>1){
-				X1[4:(2+Dat[pl,6])]=1
-				X2[4:(2+Dat[pl,6])]=1
+		cur.Observers=Observers[,i]
+		if(N[i]>0){
+			for(j in 1:N[i]){
+				X1=X
+				X2=X
+				X1[cur.Observers[1]]=1
+				X2[cur.Observers[2]]=1
+				Dat[pl,1]=i
+				Dat[pl,2]=cur.Observers[1]
+				Dat[pl,3]=cur.Observers[2]
+				Dat[pl,6]=sample(c(1:n.bins),1)
+				Dat[pl,7]=rpois(1,lambda.grp)+1
+				cur.sp=sample(c(1,2,3,4),1,prob=Species.prop)
+				Dat[pl,8]=cur.sp
+				if(Dat[pl,6]>1){
+					X1[4:(2+Dat[pl,6])]=1
+					X2[4:(2+Dat[pl,6])]=1
+				}
+				X1[8]=Dat[pl,7]
+				X2[8]=Dat[pl,7]
+				temp=c(0,0,0,0)
+				temp[cur.sp]=1
+				X1[9:12]=temp
+				X2[9:12]=temp
+				mu1=X1%*%Beta.det
+				mu2=X2%*%Beta.det
+				cur.cor=(Dat[pl,6]-1)/(n.bins-1)*cor.par
+				Dat[pl,4:5]=rmvnorm(1,c(mu1,mu2),matrix(c(1,cur.cor,cur.cor,1),2,2))
+				Dat[pl,4:5]=(Dat[pl,4:5]>0)*1.0
+				pl=pl+1
 			}
-			X1[8]=Dat[pl,7]
-			X2[8]=Dat[pl,7]
-			temp=c(0,0,0,0)
-			temp[cur.sp]=1
-			X1[9:12]=temp
-			X2[9:12]=temp
-			mu1=X1%*%Beta.det
-			mu2=X2%*%Beta.det
-			cur.cor=(Dat[pl,6]-1)/(n.bins-1)*cor.par
-			Dat[pl,4:5]=rmvnorm(1,c(mu1,mu2),matrix(c(1,cur.cor,cur.cor,1),2,2))
-			Dat[pl,4:5]=(Dat[pl,4:5]>0)*1.0
-			pl=pl+1
 		}
 	}
 	
