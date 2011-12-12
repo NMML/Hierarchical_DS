@@ -86,9 +86,7 @@ hierarchical_DS<-function(Dat,Adj,Area.hab=1,Mapping,Area.trans,Observers,Bin.le
 	n.transects=length(Area.trans)
 	n.ind.cov=ncol(Dat)-(5+n.obs.cov) #number of individual covariates
 
-	unique.observers=unique(Observers)
 	Dat[,3]=as.factor(Dat[,3])  
-	n.observers=length(unique.observers)
 	n.obs.max=ifelse(sum(is.na(Observers[2,]))==n.transects,1,2)
 	cur.colnames=colnames(Dat)
 	cur.colnames[5+n.obs.cov]="Distance"
@@ -161,6 +159,27 @@ hierarchical_DS<-function(Dat,Adj,Area.hab=1,Mapping,Area.trans,Observers,Bin.le
 			}
 		}
 	}
+	#for debugging, set data aug to truth
+#    load("TrueAug.Rdat")
+#	for(itrans in 1:n.transects){
+#		Rec.ind=which(Dat2[,"Transect"]==itrans)
+#		Cur.dat=Dat2[Rec.ind,]
+#		Cur.dat[,6]=as.numeric(Cur.dat[,6])
+#		Cur.dat[,7]=as.numeric(Cur.dat[,7])
+#		Cur.dat[,8]=as.numeric(Cur.dat[,8])		
+#		G.transect[itrans]=length(which(Dat2[,"Transect"]==itrans))/n.Observers[itrans]
+#		if(n.Observers[itrans]==2){
+#		  Obs.ind=matrix(Cur.dat[,"Obs"],2,G.transect[itrans])
+#		  Obs.ind[1,]=apply(Obs.ind,2,'max')
+#		  Obs.ind[2,]=Obs.ind[1,]
+#		  Obs.ind=as.vector(Obs.ind)
+#	  	}
+#		else Obs.ind=Cur.dat[,"Obs"]
+#		Data[itrans,(n.Records[itrans]+1):nrow(Cur.dat),(3+n.obs.cov):(4+n.obs.cov+n.ind.cov-1)]=as.matrix(Cur.dat[which(Obs.ind==0),6:8])
+#		n.Records[itrans]=G.transect[itrans]+n.Observers[itrans]
+#		N.transect[itrans]=sum(Cur.dat[,"Group"])/n.Observers[itrans]
+#	}
+	
 	stacked.names=colnames(Dat)[3:ncol(Dat)]
 	Stacked=stack_data(Data,G.transect,n.transects,stacked.names,factor.ind) #a stacked form of detection data for updating beta parameters
 	
@@ -183,7 +202,8 @@ hierarchical_DS<-function(Dat,Adj,Area.hab=1,Mapping,Area.trans,Observers,Bin.le
 	Par=Inits
 	if(is.null(Inits)==TRUE)Par=generate_inits(DM.hab=DM.hab,DM.det=DM.det,G.transect=G.transect,Area.trans=Area.trans,Area.hab=Area.hab,Mapping=Mapping,point.ind=point.ind,spat.ind=spat.ind,grp.mean=Cov.prior.parms[1,1])	
 	#start out at true value for now
-	Par$hab=c(log(100),1)
+	#Par$det=c(1.2,-.2,-.4,-.8,-1.4,-1.8,-2,.1,.2,-.4,-.2) 
+	Par$hab=c(log(240),0.5)
 	Par$Nu=DM.hab%*%Par$hab
 	#get initial individual covariate parameter values
 	Par$Cov.par=Cov.prior.parms 

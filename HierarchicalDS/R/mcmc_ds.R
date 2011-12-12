@@ -362,7 +362,7 @@ mcmc_ds<-function(Par,Data,cur.iter,adapt,Control,DM.hab,DM.det,Q,Prior.pars,Met
 				if(is.vector(Cur.dat))Cur.dat=matrix(Cur.dat,1,length(Cur.dat))
 				Dist=matrix(Cur.dat[,Meta$dist.pl],Meta$G.transect[GT0[itrans]],Meta$n.Observers[GT0[itrans]],byrow=TRUE)[,1]
 				X.temp=array(t(get_mod_matrix(Cur.dat=Cur.dat,Meta$stacked.names,Meta$factor.ind,Meta$Det.formula,Meta$Levels)),dim=c(n.beta.det,Meta$n.Observers[GT0[itrans]],Meta$G.transect[GT0[itrans]]))
-				if(Meta$n.Observers[1]==2){
+				if(Meta$n.Observers[GT0[itrans]]==2){
 					Tmp.cor=Par$cor*(Meta$i.binned*(Dist-1)*dist.mult+(1-Meta$i.binned)*Dist)
 					Cor=c(Cor,rep(Tmp.cor,2))  #assemble vector of correlation parameters for each observation
 					X.beta=rbind(X.beta,t(X.temp[,1,])-Tmp.cor*t(X.temp[,2,]),t(X.temp[,2,])-Tmp.cor*t(X.temp[,1,]))
@@ -371,7 +371,7 @@ mcmc_ds<-function(Par,Data,cur.iter,adapt,Control,DM.hab,DM.det,Q,Prior.pars,Met
 				}
 				else{
 					X.beta=rbind(X.beta,t(X.temp[,1,]))
-					Y.beta=c(Y.beta,Y.tilde[1:n.Records[GT0[itrans]],1])
+					Y.beta=c(Y.beta,Y.tilde[1:n.Records[GT0[itrans]],GT0[itrans]])
 					Cor=c(Cor,rep(0,n.Records[GT0[itrans]]))
 				}
 			}
@@ -392,7 +392,7 @@ mcmc_ds<-function(Par,Data,cur.iter,adapt,Control,DM.hab,DM.det,Q,Prior.pars,Met
 				
 				Cur.dat=Data[I.gt.one[1],1:n.Records[I.gt.one[1]],]
 				if(is.vector(Cur.dat))Cur.dat=matrix(Cur.dat,1,length(Cur.dat))
-				Dist=matrix(Cur.dat[,Meta$dist.pl],Meta$G.transect[I.gt.one[1]],Meta$n.Observers[I.gt.one[1]],byrow=TRUE)[,1]
+				Dist=matrix(Cur.dat[,Meta$dist.pl],Meta$G.transect[I.gt.one[1]],2,byrow=TRUE)[,1]
 				X.temp=array(t(get_mod_matrix(Cur.dat=Cur.dat,Meta$stacked.names,Meta$factor.ind,Meta$Det.formula,Meta$Levels)),dim=c(n.beta.det,2,Meta$G.transect[I.gt.one[1]]))
 				Y.temp=matrix(Y.tilde[1:n.Records[I.gt.one[1]],I.gt.one[1]],Meta$G.transect[I.gt.one[1]],2,byrow=TRUE)			
 				Delta1=Y.temp[,1]-(t(X.temp[,1,]) %*% Par$det)

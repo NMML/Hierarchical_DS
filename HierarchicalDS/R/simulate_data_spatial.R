@@ -15,7 +15,8 @@
 simulate_data_spatial<-function(S,Observers,Adj,tau){
 	require(mvtnorm)
 	require(Matrix)
-	set.seed(2074278)
+	set.seed(2074278) #for 15 by 15?
+	#set.seed(2074279)
 	
 	if(sqrt(S)%%1 >0)cat("\nError: S should be a square number\n")
 	Q=-Adj
@@ -26,26 +27,29 @@ simulate_data_spatial<-function(S,Observers,Adj,tau){
 	#Eta=rep(0,S)
 	
 	SP=matrix(Eta,sqrt(S),sqrt(S))
+	SP=0
 	#S=10 #number of sites
 	
 	#process parameters
 	lambda.grp=3
-	Species.prop=c(.1,.2,.3,.4)  #4 species!
+	Species.prop=c(.5,.3,.2)  #3 species!
 	X.site=cbind(rep(1,S),rep(log(c(1:sqrt(S))/sqrt(S)),sqrt(S))) #covariate on abundance intensity
-	Beta.site=c(log(100),1) 
+	Beta.site=c(log(200),1) 
 	
 	#detection parameters
 	n.bins=5 #n.bins=5 hardwired elsewhere
 	#Beta.det=c(1.2,1.0,0.8,-.8,-.6,-.4,-.2,.2,0,0,0,0)
-	Beta.det=c(1.2,1.0,0.8,-.8,-.6,-.4,-.2,.1,0,.2,-.4,-.2)  #obs 1 (bin 1), obs 2, obs 3, offset for bin 2, ..., offset for bin n.bins, grp size,species
+	#Beta.det=c(1.2,1.0,0.8,-.8,-.6,-.4,-.2,.1,0,.2,-.4,-.2)  #obs 1 (bin 1), obs 2, obs 3, offset for bin 2, ..., offset for bin n.bins, grp size,species
+	Beta.det=c(1.2,1.0,0.8,-.8,-.6,-.4,-.2,.1,0,.2,-.4)  #obs 1 (bin 1), obs 2, obs 3, offset for bin 2, ..., offset for bin n.bins, grp size,species
 												#in this version, distance pars are additive (i.e., bin 3 gets bin 2 and bin 3 effect).
 	cor.par=0.5 #correlation in max age bin (linear from zero)
 		
 	#sample transects - assume each covers 1/4 of a cell, length=2 cells
-	set.seed(111124)
+	#set.seed(12234)
 	n.transects=sqrt(S)
 	x.base=c(1:n.transects)
-	y.base=runif(n.transects,0.5,sqrt(S)-2.5)
+	y.base=round(runif(n.transects,0.5,sqrt(S)-.5))
+	y.base=c(1,1,2,3,4,5,6,7,8,9)
 	ids=factor(c(1:n.transects))
 	df<-data.frame(id=ids,x=x.base,y=y.base)
 	
@@ -54,25 +58,26 @@ simulate_data_spatial<-function(S,Observers,Adj,tau){
 	Abund.df=data.frame(cbind(rep(c(1:sqrt(S)),sqrt(S)),rep(c(1:sqrt(S)),each=sqrt(S)),round(as.vector(Abund))))
 	colnames(Abund.df)=c("y","x","Abundance")
 	require(ggplot2)
-	plot1<-ggplot(Abund.df,aes(x,y,fill=Abundance))+geom_tile()+scale_x_continuous(expand=c(0,0))+scale_y_continuous(expand=c(0,0))+scale_fill_gradient(low="white",high="black",limits=c(0,750))+xlab("")+ylab("")
-	plot1<-plot1+geom_rect(data=df,aes(group=ids,xmin=x-1/8,xmax=x+1/8,ymin=y,ymax=y+3),fill="maroon")
+	plot1<-ggplot(Abund.df,aes(x,y,fill=Abundance))+geom_tile()+scale_x_continuous(expand=c(0,0))+scale_y_continuous(expand=c(0,0))+scale_fill_gradient(low="white",high="black",limits=c(0,800))+xlab("")+ylab("")
+	plot1<-plot1+geom_rect(data=df,aes(group=ids,xmin=x-1/8,xmax=x+1/8,ymin=y-.5,ymax=y+1.5),fill="maroon")
 	plot1
 	
 	#Determine mapping, fraction of cell occupied by each transect
-	Mapping=rep(0,n.transects*4)
+	Mapping=rep(0,n.transects*2)
 	Area.trans=Mapping
 	for(itrans in 1:n.transects){
-		Mapping[((itrans-1)*4+1):((itrans-1)*4+4)]=(itrans-1)*15+c((n.transects-floor(y.base[itrans]+.5)-2):(n.transects-floor(y.base[itrans]+.5)+1))
-		Area.trans[((itrans-1)*4+1):((itrans-1)*4+4)]=.25*c(ceiling(y.base[itrans]+0.5)-y.base[itrans]-0.5,1,1,y.base[itrans]+0.5-floor(y.base[itrans]+0.5))
+		Mapping[((itrans-1)*2+1):((itrans-1)*2+2)]=(itrans-1)*5+((n.transects-y.base[itrans]):(n.transects-y.base[itrans]+1))
+		Area.trans[((itrans-1)*2+1):((itrans-1)*2+2)]=0.25
 	}
 	
 	Exp.grp.abund=exp(X.site%*%Beta.site+as.vector(SP))
-	N=rpois(n.transects*4,Area.trans*Exp.grp.abund[Mapping])
+	#N=rpois(n.transects*2,Area.trans*Exp.grp.abund[Mapping])
+	N=round(Area.trans*Exp.grp.abund[Mapping])
 	
 	Dat=matrix(0,sum(N),8)  #rows are site, observer 1 ID, obs 2 ID,  Y_1, Y_2, Distance, Group size,species
 	X=rep(0,length(Beta.det))
 	pl=1
-	for(i in 1:(n.transects*4)){
+	for(i in 1:(n.transects*2)){
 		cur.Observers=Observers[,i]
 		if(N[i]>0){
 			for(j in 1:N[i]){
@@ -84,13 +89,13 @@ simulate_data_spatial<-function(S,Observers,Adj,tau){
 					Dat[pl,3]=cur.Observers[2]
 					Dat[pl,6]=sample(c(1:n.bins),1)
 					Dat[pl,7]=rpois(1,lambda.grp)+1
-					cur.sp=sample(c(1,2,3,4),1,prob=Species.prop)
+					cur.sp=sample(c(1,2,3),1,prob=Species.prop)
 					Dat[pl,8]=cur.sp
 					if(Dat[pl,6]>1)X1[4:(2+Dat[pl,6])]=1
 					X1[8]=Dat[pl,7]
-					temp=c(0,0,0,0)
+					temp=c(0,0,0)
 					temp[cur.sp]=1
-					X1[9:12]=temp
+					X1[9:11]=temp
 					mu1=X1%*%Beta.det
 					Dat[pl,4]=rnorm(1,mu1,1)
 					Dat[pl,4]=(Dat[pl,4]>0)*1.0
@@ -107,7 +112,7 @@ simulate_data_spatial<-function(S,Observers,Adj,tau){
 					Dat[pl,3]=cur.Observers[2]
 					Dat[pl,6]=sample(c(1:n.bins),1)
 					Dat[pl,7]=rpois(1,lambda.grp)+1
-					cur.sp=sample(c(1,2,3,4),1,prob=Species.prop)
+					cur.sp=sample(c(1,2,3),1,prob=Species.prop)
 					Dat[pl,8]=cur.sp
 					if(Dat[pl,6]>1){
 						X1[4:(2+Dat[pl,6])]=1
@@ -115,10 +120,10 @@ simulate_data_spatial<-function(S,Observers,Adj,tau){
 					}
 					X1[8]=Dat[pl,7]
 					X2[8]=Dat[pl,7]
-					temp=c(0,0,0,0)
+					temp=c(0,0,0)
 					temp[cur.sp]=1
-					X1[9:12]=temp
-					X2[9:12]=temp
+					X1[9:11]=temp
+					X2[9:11]=temp
 					mu1=X1%*%Beta.det
 					mu2=X2%*%Beta.det
 					cur.cor=(Dat[pl,6]-1)/(n.bins-1)*cor.par
@@ -167,12 +172,15 @@ simulate_data_spatial<-function(S,Observers,Adj,tau){
 			ipl=ipl+2
 		}
 	}
+	
 	Dat2=as.data.frame(Dat2[1:(ipl-1),])
 	colnames(Dat2)=c("Transect","Match","Observer","Obs","Seat","Distance","Group","Species")
 	Dat2[,"Observer"]=as.factor(Dat2[,"Observer"])
 	Dat2[,"Distance"]=as.factor(Dat2[,"Distance"])
 	Dat2[,"Seat"]=as.factor(Dat2[,"Seat"])
 	Dat2[,"Species"]=as.factor(Dat2[,"Species"])
+	#save(Dat2,file="TrueAug.Rdat")
+	
 	Out=list(Dat=Dat2,Mapping=Mapping,Area.trans=Area.trans,True.G=N,Tot.abund=Abund) 
 	Out
 }
