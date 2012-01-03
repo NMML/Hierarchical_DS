@@ -39,7 +39,7 @@ switch_sample_prior<-function(pdf,cur.par){
 
 #' function to stack data (going from three dimensional array to a two dimensional array including only "existing" animals
 #' @param Data three-d dataset
-#' @param G.transect	current number of groups of animals in each transect (vector)
+#' @param Obs.transect	current number of observations of animals in each transect (vector)
 #' @param n.transects	number of transects
 #' @param stacked.names	column names for new stacked dataset
 #' @param factor.ind	a vector of indicator variables (1 = factor/categorical variable, 0 = continuous variable)
@@ -47,15 +47,13 @@ switch_sample_prior<-function(pdf,cur.par){
 #' @export
 #' @keywords stack data
 #' @author Paul B. Conn
-stack_data<-function(Data,G.transect,n.transects,stacked.names,factor.ind){
+stack_data<-function(Data,Obs.transect,n.transects,stacked.names,factor.ind){
 	#convert from "sparse" 3-d data augmentation array to a rich 2-d dataframe for updating beta parameters 
-	max.G=max(G.transect)[1]
-	max.id=which(G.transect==max.G)[1]
-	Stacked=as.data.frame(Data[max.id,1:max.G,])
+	Stacked=as.data.frame(Data[1,1:2,])
 	for(itrans in 1:n.transects){
-		if(G.transect[itrans]>0)Stacked=rbind(Stacked,Data[itrans,1:G.transect[itrans],])
+		if(Obs.transect[itrans]>0)Stacked=rbind(Stacked,Data[itrans,1:Obs.transect[itrans],])
 	}
-	Stacked=Stacked[-c(1:max.G),]
+	Stacked=Stacked[-c(1,2),]
 	colnames(Stacked)=stacked.names	#gotta reestablish variable type since 3-d array doesn't hold it
 	factor.cols=which(factor.ind[stacked.names]==TRUE) 
 	if(length(factor.cols)>0){
@@ -103,7 +101,7 @@ get_mod_matrix<-function(Cur.dat,stacked.names,factor.ind,Det.formula,Levels){
 #' @keywords initial values, mcmc
 #' @author Paul B. Conn
 generate_inits<-function(DM.hab,DM.det,G.transect,Area.trans,Area.hab,Mapping,point.ind,spat.ind,grp.mean){		
-	Par=list(det=rnorm(ncol(DM.det),0,1),hab=rep(0,ncol(DM.hab)),cor=ifelse(point.ind,runif(1,0,1),0),
+	Par=list(det=rnorm(ncol(DM.det),0,1),hab=rep(0,ncol(DM.hab)),cor=ifelse(point.ind,runif(1,0,.8),0),
 			Nu=log(max(G.transect)/mean(Area.trans)*exp(rnorm(length(Area.hab)))),Eta=rnorm(length(Area.hab)),
 			tau.eta=runif(1,0.5,2),tau.nu=runif(1,0.5,2))
 	Par$hab[1]=mean(G.transect)/(mean(Area.trans)*mean(Area.hab))*exp(rnorm(1,0,1))

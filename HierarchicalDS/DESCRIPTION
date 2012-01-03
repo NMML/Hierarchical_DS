@@ -20,7 +20,7 @@ Description: Functions for performing hierarchical analysis of distance
     distance bin).
 Version: 1.0
 Depends: truncnorm (>= 1.0-4), MASS (>= 7.3), mvtnorm (>= 0.9),Matrix
-    (>= 0.999375-46)
-Date: 2011-09-28
+    (>= 0.999375-46),coda (>=0.14)
+Date: 2011-12-19
 Collate: 'hierarchical_DS.R' 'mcmc_ds.R' 'run_analysis.R'
     'simulate_data.R' 'spat_funcs.R'

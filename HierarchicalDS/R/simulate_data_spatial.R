@@ -16,7 +16,7 @@ simulate_data_spatial<-function(S,Observers,Adj,tau){
 	require(mvtnorm)
 	require(Matrix)
 	set.seed(2074278) #for 15 by 15?
-	#set.seed(2074279)
+	#set.seed(207433)
 	
 	if(sqrt(S)%%1 >0)cat("\nError: S should be a square number\n")
 	Q=-Adj
@@ -27,8 +27,9 @@ simulate_data_spatial<-function(S,Observers,Adj,tau){
 	#Eta=rep(0,S)
 	
 	SP=matrix(Eta,sqrt(S),sqrt(S))
-	SP=0
+	#SP=0
 	#S=10 #number of sites
+	#set.seed(207434)
 	
 	#process parameters
 	lambda.grp=3
@@ -45,20 +46,21 @@ simulate_data_spatial<-function(S,Observers,Adj,tau){
 	cor.par=0.5 #correlation in max age bin (linear from zero)
 		
 	#sample transects - assume each covers 1/4 of a cell, length=2 cells
-	#set.seed(12234)
+	#set.seed(12234
 	n.transects=sqrt(S)
 	x.base=c(1:n.transects)
 	y.base=round(runif(n.transects,0.5,sqrt(S)-.5))
-	y.base=c(1,1,2,3,4,5,6,7,8,9)
+	#y.base=c(1,4,2,1,4)
+	#y.base=c(1,1,2,3,4,5,6,7,8,9)
 	ids=factor(c(1:n.transects))
 	df<-data.frame(id=ids,x=x.base,y=y.base)
 	
 	#plot expected abundance
 	Abund=4*exp(X.site%*%Beta.site+as.vector(SP))  #sum=11971; expected total abundance =11971*4=47885
-	Abund.df=data.frame(cbind(rep(c(1:sqrt(S)),sqrt(S)),rep(c(1:sqrt(S)),each=sqrt(S)),round(as.vector(Abund))))
+	Abund.df=data.frame(cbind(rep(c(sqrt(S):1),sqrt(S)),rep(c(1:sqrt(S)),each=sqrt(S)),round(as.vector(Abund))))
 	colnames(Abund.df)=c("y","x","Abundance")
 	require(ggplot2)
-	plot1<-ggplot(Abund.df,aes(x,y,fill=Abundance))+geom_tile()+scale_x_continuous(expand=c(0,0))+scale_y_continuous(expand=c(0,0))+scale_fill_gradient(low="white",high="black",limits=c(0,800))+xlab("")+ylab("")
+	plot1<-ggplot(Abund.df,aes(x,y,fill=Abundance))+geom_tile()+scale_x_continuous(expand=c(0,0))+scale_y_continuous(expand=c(0,0))+scale_fill_gradient(low="white",high="black",limits=c(0,1000))+xlab("")+ylab("")
 	plot1<-plot1+geom_rect(data=df,aes(group=ids,xmin=x-1/8,xmax=x+1/8,ymin=y-.5,ymax=y+1.5),fill="maroon")
 	plot1
 	
@@ -66,11 +68,12 @@ simulate_data_spatial<-function(S,Observers,Adj,tau){
 	Mapping=rep(0,n.transects*2)
 	Area.trans=Mapping
 	for(itrans in 1:n.transects){
-		Mapping[((itrans-1)*2+1):((itrans-1)*2+2)]=(itrans-1)*5+((n.transects-y.base[itrans]):(n.transects-y.base[itrans]+1))
+		Mapping[((itrans-1)*2+1):((itrans-1)*2+2)]=(itrans-1)*sqrt(S)+((n.transects-y.base[itrans]):(n.transects-y.base[itrans]+1))
 		Area.trans[((itrans-1)*2+1):((itrans-1)*2+2)]=0.25
 	}
 	
-	Exp.grp.abund=exp(X.site%*%Beta.site+as.vector(SP))
+	Exp.grp.abund=exp(X.site%*%Beta.site+as.vector(SP)) 
+	cat(paste("\n Expected abundance = ",sum(Exp.grp.abund)*(lambda.grp+1)))
 	#N=rpois(n.transects*2,Area.trans*Exp.grp.abund[Mapping])
 	N=round(Area.trans*Exp.grp.abund[Mapping])
 	

@@ -40,6 +40,9 @@
 #' @param pol.eff 	For continuous distance, which polynomial degrees to model (default is c(1:2); an intercept is always estimated when "Distance" is listed in "Det.formula")
 #' @param point.ind  Estimate a correlation parameter for detection probability that's an increasing function of distance?
 #' @param spat.ind	If TRUE, assumes spatial independence (no spatial random effects on abundance intensity) default is FALSE
+#' @param fix.tau.nu  If TRUE, fixes tau.nu during estimation (the value to fix it to can be provided in "Inits")
+#' @param srr  If TRUE, uses spatially retricted regression, where smoothing occurs on residuals and all spatial effects are orthogonal to the linear predictors (by default, analysis is limited to the highest 50 eigenvalues of the decomposition of the residual projection matrix to reduce computing time)
+#' @param srr.tol Threshold eigenvalue level for SRR; only eigenvectors with higher eigenvalues than srr.tol are included in SRR formulation (default is 0.5)
 #' @param grps 	If FALSE, detections are assumed to all be of individual animals
 #' @param M		Vector giving maximum possible value for number of groups present in each transect (in practice just set high enough that values at M and above are never sampled during MCMC)
 #' 			and can be fine tuned as needed
@@ -61,6 +64,7 @@
 #'	"Eta": If spat.ind==FALSE, spatial random effects; one for each strata; 
 #'	"tau.eta": If spat.ind==FALSE, precision for spatial ICAR model;  
 #'	"tau.nu": Precision for Nu (overdispersion relative to the Poisson distribution)
+#'  One need not specify an initial value for all parameter types (if less are specified, the others are generated randomly)
 #' @param adapt	If adapt==TRUE, run an additional Control$adapt number of MCMC iterations to optimize MCMC proposal distributions prior to primary MCMC
 #' @param Prior.pars	A list object giving parameters of prior distribution.  Includes the following slots
 #'	"a.eta": alpha parameter for prior precision of spatial process (assumed Gamma(a.eta,b.eta))
@@ -76,7 +80,7 @@
 #' @import Matrix
 #' @keywords areal model, data augmentation, distance sampling, mcmc, reversible jump
 #' @author Paul B. Conn
-hierarchical_DS<-function(Dat,Adj,Area.hab=1,Mapping,Area.trans,Observers,Bin.length,Hab.cov,Obs.cov,Hab.formula,Det.formula,Cov.prior.pdf,Cov.prior.parms,Cov.prior.fixed,n.obs.cov=0,pol.eff=c(1:2),point.ind=TRUE,spat.ind=FALSE,Inits=NULL,Levels=NA,grps=FALSE,M,Control,adapt=TRUE,Prior.pars){
+hierarchical_DS<-function(Dat,Adj,Area.hab=1,Mapping,Area.trans,Observers,Bin.length,Hab.cov,Obs.cov,Hab.formula,Det.formula,Cov.prior.pdf,Cov.prior.parms,Cov.prior.fixed,n.obs.cov=0,pol.eff=c(1:2),point.ind=TRUE,spat.ind=FALSE,fix.tau.nu=FALSE,srr=TRUE,srr.tol=0.5,Inits=NULL,Levels=NA,grps=FALSE,M,Control,adapt=TRUE,Prior.pars){
 	require(mvtnorm)
 	require(Matrix)
 	require(truncnorm)
@@ -181,7 +185,7 @@ hierarchical_DS<-function(Dat,Adj,Area.hab=1,Mapping,Area.trans,Observers,Bin.le
 #	}
 	
 	stacked.names=colnames(Dat)[3:ncol(Dat)]
-	Stacked=stack_data(Data,G.transect,n.transects,stacked.names,factor.ind) #a stacked form of detection data for updating beta parameters
+	Stacked=stack_data(Data,G.transect*n.Observers,n.transects,stacked.names,factor.ind) #a stacked form of detection data for updating beta parameters
 	
 	#determine levels for each factor variable to help in assembling compatible DMs for smaller datasets 
 	# (stored in list object named 'Levels')
@@ -199,12 +203,17 @@ hierarchical_DS<-function(Dat,Adj,Area.hab=1,Mapping,Area.trans,Observers,Bin.le
 	DM.hab=model.matrix(Hab.formula,data=Hab.cov)
 	DM.det=get_mod_matrix(Cur.dat=Stacked,stacked.names,factor.ind,Det.formula,Levels)
 	
-	Par=Inits
-	if(is.null(Inits)==TRUE)Par=generate_inits(DM.hab=DM.hab,DM.det=DM.det,G.transect=G.transect,Area.trans=Area.trans,Area.hab=Area.hab,Mapping=Mapping,point.ind=point.ind,spat.ind=spat.ind,grp.mean=Cov.prior.parms[1,1])	
+	
+	Par=generate_inits(DM.hab=DM.hab,DM.det=DM.det,G.transect=G.transect,Area.trans=Area.trans,Area.hab=Area.hab,Mapping=Mapping,point.ind=point.ind,spat.ind=spat.ind,grp.mean=Cov.prior.parms[1,1])	
+	if(is.null(Inits)==FALSE){  #replace random inits with user provided inits for all parameters specified
+		I.init=names(Inits)
+		for(ipar in 1:length(I.init)){
+			eval(parse(text=paste("Par$",names(Inits)[ipar],"=Inits$",names(Inits[ipar]))))
+		}
+	}
 	#start out at true value for now
 	#Par$det=c(1.2,-.2,-.4,-.8,-1.4,-1.8,-2,.1,.2,-.4,-.2) 
-	Par$hab=c(log(240),0.5)
-	Par$Nu=DM.hab%*%Par$hab
+	Par$Nu=DM.hab%*%Par$hab+rnorm(S,0,0.1)
 	#get initial individual covariate parameter values
 	Par$Cov.par=Cov.prior.parms 
 	for(i in 1:n.ind.cov){	
@@ -239,7 +248,7 @@ hierarchical_DS<-function(Dat,Adj,Area.hab=1,Mapping,Area.trans,Observers,Bin.le
 			Mapping=Mapping,Covered.area=Covered.area,n.Observers=n.Observers,M=M,stacked.names=stacked.names,
 			factor.ind=factor.ind,Det.formula=Det.formula,Levels=Levels,i.binned=i.binned,dist.pl=dist.pl,
 			G.transect=G.transect,N.transect=N.transect,grps=grps,n.bins=n.bins,Bin.length=Bin.length,n.ind.cov=n.ind.cov,
-			Cov.prior.pdf=Cov.prior.pdf,Cov.prior.parms=Cov.prior.parms,Cov.prior.fixed=Cov.prior.fixed,point.ind=point.ind)
+			Cov.prior.pdf=Cov.prior.pdf,Cov.prior.parms=Cov.prior.parms,Cov.prior.fixed=Cov.prior.fixed,point.ind=point.ind,fix.tau.nu=fix.tau.nu,srr=srr,srr.tol=srr.tol)
 		
 	if(adapt==TRUE){
 		cat('\n Beginning adapt phase \n')

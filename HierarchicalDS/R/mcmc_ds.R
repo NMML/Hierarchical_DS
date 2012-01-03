@@ -57,6 +57,9 @@
 #'  "Cov.prior.parms"	(n x n.ind.cov) matrix providing "pseudo-prior" parameters for individual covarate distributions (only the first row used if a signle parameter distribution)
 #'  "Cov.prior.fixed" indicator vector for whether parameters of each covariate distribution should be fixed within estimation routine
 #'  "point.ind"		Indicator for whether point independence assumed (if no, then no correlation modeled b/w multiple observers as function of distance)
+#'  "fix.tau.nu"	Indicator for whether tau.nu should be fixed (1) or estimated(0)
+#'  "srr"			Indicator for whether a spatially restricted regression model should be employed (1) or not (0)
+#'  "srr.tol"		Threshold eigenvalue level for SRR; only eigenvectors with higher eigenvalues than srr.tol are included in SRR formulation
 #' @return returns a list with the following slots: 
 #' 	"MCMC": A list object containing posterior samples;
 #'  "Accept": A list object indicating the number of proposals that were accepted for parameters updated via Metropolis- or Langevin-Hastings algorithms;
@@ -92,6 +95,19 @@ mcmc_ds<-function(Par,Data,cur.iter,adapt,Control,DM.hab,DM.det,Q,Prior.pars,Met
 		ExpY=X%*%Par$det
 		Y.tilde[,itrans]=rtruncnorm(max(Meta$M), a=ifelse(Data[itrans,,2]==0,-Inf,0), b=ifelse(Data[itrans,,2]==0,0,Inf), ExpY, 1)		
 	}
+
+	if(Meta$srr==TRUE){
+		P.c=diag(Meta$S)-DM.hab%*%solve(crossprod(DM.hab,DM.hab),t(DM.hab))
+		Eigen.P.c=eigen(P.c)
+		Ind=which(Eigen.P.c$values>0.01)
+		L.t=Eigen.P.c$vectors[,Ind]
+		cat(paste("\n",length(Ind)," eigenvectors selected for spatially restricted regression \n"))
+		L=t(L.t)
+		Qt=L%*%Q%*%L.t
+		cross.L=L%*%L.t	
+		n.theta=nrow(Qt)
+		Theta=rnorm(n.theta,0,sqrt(1/Par$tau.eta))
+	}
 	
 	#initialize MCMC, Acceptance rate matrices
 	mcmc.length=(Control$iter-Control$burnin)/Control$thin
@@ -114,6 +130,8 @@ mcmc_ds<-function(Par,Data,cur.iter,adapt,Control,DM.hab,DM.det,Q,Prior.pars,Met
 		
 		#update nu parameters (log lambda)
 		Mu=DM.hab%*%Par$hab+Par$Eta
+		#cat(paste("\n Mu",Mu))
+		#cat(paste("\n Nu",Par$Nu))
 		Grad1=sapply(Lam.index,'log_lambda_gradient',Mu=Mu,Nu=Par$Nu,N=Par$G,var.nu=1/Par$tau.nu)
 		Prop=Par$Nu+Control$MH.nu^2*0.5*Grad1+Control$MH.nu*rnorm(Meta$S)
 		new.post=log_lambda_log_likelihood(Log.lambda=Prop,DM=DM.hab,Beta=Par$hab,SD=sqrt(1/Par$tau.nu),N=Par$G)
@@ -122,27 +140,42 @@ mcmc_ds<-function(Par,Data,cur.iter,adapt,Control,DM.hab,DM.det,Q,Prior.pars,Met
 		diff1=as.vector(Par$Nu-Prop-0.5*Control$MH.nu^2*Grad2)	
 		diff2=as.vector(Prop-Par$Nu-0.5*Control$MH.nu^2*Grad1)
 		log.jump=0.5/Control$MH.nu^2*(sqrt(crossprod(diff1,diff1))-sqrt(crossprod(diff2,diff2))) #ratio of jumping distributions using e.g. Robert and Casella 2004 p. 319	
+		#cat(paste("\n iter=",iiter," new=",new.post," old=",old.post," jump=",log.jump))
 		if(runif(1)<exp(new.post-old.post+log.jump)){
 			Par$Nu=Prop
 			Accept$Nu=Accept$Nu+1	
 		}
 		
 		if(Meta$spat.ind==0){
-			#update eta parameters (spatial random effects)
-			V.eta.inv <- Par$tau.nu*diag(Meta$S) + Par$tau.eta*Q
-			M.eta <- solve(V.eta.inv, Par$tau.nu*(Par$Nu-DM.hab%*%Par$hab))		
-			Par$Eta<-as.vector(M.eta+solve(chol(V.eta.inv),rnorm(Meta$S,0,1)))
-			Par$Eta=Par$Eta-mean(Par$Eta)  #centering
-
-			#update tau_eta  (precision of spatial process)
-			Par$tau.eta <- rgamma(1, (Meta$S-1)/2 + Prior.pars$a.eta, as.numeric(crossprod(Par$Eta, Q %*% Par$Eta)/2) + Prior.pars$b.eta)
+			if(Meta$srr==FALSE){
+				#update eta parameters (spatial random effects)
+				V.eta.inv <- Par$tau.nu*diag(Meta$S) + Par$tau.eta*Q
+				M.eta <- solve(V.eta.inv, Par$tau.nu*(Par$Nu-DM.hab%*%Par$hab))		
+				Par$Eta<-as.vector(M.eta+solve(chol(V.eta.inv),rnorm(Meta$S,0,1)))
+				Par$Eta=Par$Eta-mean(Par$Eta)  #centering
+				
+				#update tau_eta  (precision of spatial process)
+				Par$tau.eta <- rgamma(1, (Meta$S-1)/2 + Prior.pars$a.eta, as.numeric(crossprod(Par$Eta, Q %*% Par$Eta)/2) + Prior.pars$b.eta)
+			}
+			else{
+				#Update Theta
+				Dat.minus.Exp=Par$Nu-DM.hab%*%Par$hab
+				V.eta.inv <- cross.L + Par$tau.eta*Qt
+				M.eta <- solve(V.eta.inv, L%*%Dat.minus.Exp)
+				Theta <- M.eta + solve(chol(as.matrix(V.eta.inv)), rnorm(n.theta,0,1))
+				Eta=L.t%*%Theta
+				
+				#update tau.eta
+				Par$tau.eta <- rgamma(1, Meta$S/2 + Prior.pars$a.eta, as.numeric(crossprod(Theta, Qt %*% Theta)/2) + Prior.pars$b.eta)
+			}
 		}
 		
 		#update tau_nu	 (precision for Poisson overdispersion)
 		Mu=DM.hab%*%Par$hab+Par$Eta
-		Diff=Par$Nu-Mu
-		Par$tau.nu <- rgamma(1,Meta$S/2 + Prior.pars$a.nu, as.numeric(crossprod(Diff,Diff))/2 + Prior.pars$b.nu)
-		
+		if(Meta$fix.tau.nu==FALSE){
+			Diff=Par$Nu-Mu
+			Par$tau.nu <- rgamma(1,Meta$S/2 + Prior.pars$a.nu, as.numeric(crossprod(Diff,Diff))/2 + Prior.pars$b.nu)
+		}
 		
 		#translate to lambda scale
 		Lambda=Meta$Area.hab*exp(Par$Nu)

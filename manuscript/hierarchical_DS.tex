@@ -189,7 +189,7 @@ x_{ijk} \sim f(g(\theta,\epsilon_{ijk})),
 \end{equation}
 where $f()$ specifies a probability density or mass function, $g()$ specifies an arbitrary function, $\theta$ gives hyper-priors for $f()$, and $\epsilon_{ijk}$ specify random effects.  We have implemented a number of such functions in our accompanying R package, \emph{dspat}.  For instance, the user can choose $f()$ to be a uniform, multinomial, Poisson, zero-truncated Poisson, overdispersed Poisson, or overdispersed zero-truncated Poisson distribution.  The overdispersed versions of the Poisson distribution are modeled as in \cite{McClintockEtAl2009}; namely
 $$
-x_{ijk} \sim {\rm Poisson}(\theta+\sigma \epsilon_{ijk}),
+x_{ijk} \sim {\rm Poisson}(\exp(\theta+\sigma \epsilon_{ijk})),
 $$
 where $\epsilon_{ijk} \sim {\rm Normal}(0,1)$.
 The zero-truncated versions of the Poisson distribution are important for modeling covariates such as group size, which are by definition $\ge 1$ \cite{Royle2008}.
