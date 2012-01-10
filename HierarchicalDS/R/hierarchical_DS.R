@@ -88,123 +88,10 @@ hierarchical_DS<-function(Dat,Adj,Area.hab=1,Mapping,Area.trans,Observers,Bin.le
 	
 	S=nrow(Adj)
 	n.transects=length(Area.trans)
-	n.ind.cov=ncol(Dat)-(5+n.obs.cov) #number of individual covariates
-
-	Dat[,3]=as.factor(Dat[,3])  
-	n.obs.max=ifelse(sum(is.na(Observers[2,]))==n.transects,1,2)
-	cur.colnames=colnames(Dat)
-	cur.colnames[5+n.obs.cov]="Distance"
-	if(grps==TRUE)cur.colnames[6+n.obs.cov]="Group"
-	colnames(Dat)=cur.colnames
-	i.binned=0
-	if(is.factor(Dat[1,"Distance"])==1){
-		i.binned=1
-		n.bins=length(unique(Dat[,"Distance"]))
-	}
-
-	factor.ind=sapply(Dat[1,],is.factor)
-	
-	Dat.num=Dat
-	for(icol in 1:ncol(Dat)){
-		Dat.num[,icol]=as.numeric(as.character(Dat[,icol]))
-	}
-	Dat.num=as.data.frame(Dat.num)
-	
-	n.Observers=apply(1-is.na(Observers),2,'sum')
-	M=M*n.Observers	#actual dimension of M goes up if >1 observer
-	
-	#Initialize data augmentation multi-d array ("Data"), parameter vectors and matrices
-	Data<-array(0,dim=c(n.transects,max(M),3+n.obs.cov+n.ind.cov)) #array cols are Obs ID,Y,Obs covariates,Distance,Ind covariates
-	G.transect=rep(0,n.transects)  #number of groups by transect
-	n.Records=rep(0,n.transects) #number of records by transect (=G.transect*n.Observers)
-	N.transect=G.transect #total abundance by transect
-
-	for(itrans in 1:n.transects){
-		cur.gt0=sum(Dat.num[,1]==itrans)
-		if(cur.gt0>0){
-			Cur.dat=Dat.num[which(Dat.num[,1]==itrans),2:ncol(Dat.num)]
-			Cur.dat=Cur.dat[,-1]
-			Data[itrans,1:nrow(Cur.dat),1:(2+n.obs.cov)]=as.matrix(Cur.dat[,1:(2+n.obs.cov)])
-			Data[itrans,1:nrow(Cur.dat),3+n.obs.cov]=as.matrix(Cur.dat[,"Distance"])
-			#fill distances for unobserved
-			if(i.binned==1)Data[itrans,(nrow(Cur.dat)+1):M[itrans],3+n.obs.cov]=rep(sample(c(1:n.bins),size=(M[itrans]-nrow(Cur.dat))/n.Observers[itrans],replace=TRUE,prob=Bin.length),each=n.Observers[itrans])
-			else Data[itrans,(nrow(Cur.dat)+1):M[itrans],3+n.obs.cov]=rep(runif((M[itrans]-nrow(Cur.dat))/n.Observers[itrans]),each=n.Observers[itrans])
-			#fill individual covariate values for (potential) animals that weren't observed
-			if(n.ind.cov>0){
-				Data[itrans,1:nrow(Cur.dat),(4+n.obs.cov):(4+n.obs.cov+n.ind.cov-1)]=as.matrix(Cur.dat[,(4+n.obs.cov):(4+n.obs.cov+n.ind.cov-1)])
-				for(icov in 1:n.ind.cov){
-					rsamp=switch_sample(n=(M[itrans]-nrow(Cur.dat))/n.Observers[itrans],pdf=Cov.prior.pdf[icov],cur.par=Cov.prior.parms[,icov],RE=0)
-					Data[itrans,(nrow(Cur.dat)+1):M[itrans],3+n.obs.cov+icov]=rep(rsamp,each=n.Observers[itrans])
-				}
-			}
-			G.transect[itrans]=nrow(Cur.dat)/n.Observers[itrans]		#initialize abundance in each transect area to be = to total number of animals observed
-			n.Records[itrans]=G.transect[itrans]*n.Observers[itrans]
-			N.transect[itrans]=ifelse(grps==FALSE,G.transect[itrans],sum(Cur.dat[,which(colnames(Cur.dat)=="Group")])/n.Observers[itrans])
-		}
-		else{
-			if(i.binned==1)Data[itrans,1:M[itrans],3+n.obs.cov]=rep(sample(c(1:n.bins),size=M[itrans]/n.Observers[itrans],replace=TRUE,prob=Bin.length),each=n.Observers[itrans])
-			else Data[itrans,1:M[itrans],3+n.obs.cov]=rep(runif(M[itrans]/n.Observers[itrans]),each=n.Observers[itrans])
-			if(n.ind.cov>0){
-				for(icov in 1:n.ind.cov){
-					rsamp=switch_sample(n=M[itrans]/n.Observers[itrans],pdf=Cov.prior.pdf[icov],cur.par=Cov.prior.parms[,icov],RE=0)
-					Data[itrans,1:M[itrans],3+n.obs.cov+icov]=rep(rsamp,each=n.Observers[itrans])
-				}
-			}
-			G.transect[itrans]=0
-			n.Records[itrans]=0
-			N.transect[itrans]=0
-		}
-		#fill observer ids
-		Data[itrans,(n.Records[itrans]+1):M[itrans],1]=rep(Observers[1:n.Observers[itrans],itrans],(M[itrans]-n.Records[itrans])/n.Observers[itrans])
-		#fill observer covariates
-		if(n.obs.cov>0){
-			for(icov in 1:n.obs.cov){
-				Data[itrans,(n.Records[itrans]+1):M[itrans],2+icov]=rep(Obs.cov[1:n.Observers[itrans],itrans,icov],(M[itrans]-n.Records[itrans])/n.Observers[itrans])
-			}
-		}
-	}
-	#for debugging, set data aug to truth
-#    load("TrueAug.Rdat")
-#	for(itrans in 1:n.transects){
-#		Rec.ind=which(Dat2[,"Transect"]==itrans)
-#		Cur.dat=Dat2[Rec.ind,]
-#		Cur.dat[,6]=as.numeric(Cur.dat[,6])
-#		Cur.dat[,7]=as.numeric(Cur.dat[,7])
-#		Cur.dat[,8]=as.numeric(Cur.dat[,8])		
-#		G.transect[itrans]=length(which(Dat2[,"Transect"]==itrans))/n.Observers[itrans]
-#		if(n.Observers[itrans]==2){
-#		  Obs.ind=matrix(Cur.dat[,"Obs"],2,G.transect[itrans])
-#		  Obs.ind[1,]=apply(Obs.ind,2,'max')
-#		  Obs.ind[2,]=Obs.ind[1,]
-#		  Obs.ind=as.vector(Obs.ind)
-#	  	}
-#		else Obs.ind=Cur.dat[,"Obs"]
-#		Data[itrans,(n.Records[itrans]+1):nrow(Cur.dat),(3+n.obs.cov):(4+n.obs.cov+n.ind.cov-1)]=as.matrix(Cur.dat[which(Obs.ind==0),6:8])
-#		n.Records[itrans]=G.transect[itrans]+n.Observers[itrans]
-#		N.transect[itrans]=sum(Cur.dat[,"Group"])/n.Observers[itrans]
-#	}
-	
-	stacked.names=colnames(Dat)[3:ncol(Dat)]
-	Stacked=stack_data(Data,G.transect*n.Observers,n.transects,stacked.names,factor.ind) #a stacked form of detection data for updating beta parameters
-	
-	#determine levels for each factor variable to help in assembling compatible DMs for smaller datasets 
-	# (stored in list object named 'Levels')
-	factor.cols=which(factor.ind[stacked.names]==TRUE) 
-	if(length(factor.cols)>0 & is.na(Levels)[1]==1){
-		Temp=Stacked[,factor.cols]
-		Levels=eval(parse(text=paste('list(',colnames(Temp)[1],'=levels(Temp[,1]))',sep='')))
-		if(length(factor.cols)>1){
-			for(icol in 2:length(factor.cols)){
-				eval(parse(text=paste('Levels$',colnames(Temp)[icol],'=levels(Temp[,icol])',sep='')))	
-			}
-		}		
-	}
-	
+	G.transect=Dat
 	DM.hab=model.matrix(Hab.formula,data=Hab.cov)
-	DM.det=get_mod_matrix(Cur.dat=Stacked,stacked.names,factor.ind,Det.formula,Levels)
-	
-	
-	Par=generate_inits(DM.hab=DM.hab,DM.det=DM.det,G.transect=G.transect,Area.trans=Area.trans,Area.hab=Area.hab,Mapping=Mapping,point.ind=point.ind,spat.ind=spat.ind,grp.mean=Cov.prior.parms[1,1])	
+
+	Par=generate_inits(DM.hab=DM.hab,G.transect=G.transect,Area.trans=Area.trans,Area.hab=Area.hab,Mapping=Mapping,spat.ind=spat.ind)	
 	if(is.null(Inits)==FALSE){  #replace random inits with user provided inits for all parameters specified
 		I.init=names(Inits)
 		for(ipar in 1:length(I.init)){
@@ -215,23 +102,8 @@ hierarchical_DS<-function(Dat,Adj,Area.hab=1,Mapping,Area.trans,Observers,Bin.le
 	#Par$det=c(1.2,-.2,-.4,-.8,-1.4,-1.8,-2,.1,.2,-.4,-.2) 
 	Par$Nu=DM.hab%*%Par$hab+rnorm(S,0,0.1)
 	#get initial individual covariate parameter values
-	Par$Cov.par=Cov.prior.parms 
-	for(i in 1:n.ind.cov){	
-		if(Cov.prior.fixed[i]==1)Par$Cov.par[,i]=Cov.prior.parms[,i]
-		else{
-			temp=switch_sample_prior(Cov.prior.pdf[i],Cov.prior.parms[,i])
-			Par$Cov.par[1:length(temp),i]=temp
-		}
-	}
-	
-	dist.pl=3+n.obs.cov
-	
 	n.hab.cov=ifelse(is.null(Hab.cov)==1,0,ncol(Hab.cov))
-	
-	#Check to make sure input values are internally consistent
-	if(n.obs.max>2)cat("\n ERROR: Current max number of observers per transect is 2\n")
-	#Later...
-	
+		
 	i.Covered=c(1:S)%in%Mapping
 	Covered.area=rep(0,S)
 	for(i in 1:S){
@@ -245,22 +117,18 @@ hierarchical_DS<-function(Dat,Adj,Area.hab=1,Mapping,Area.trans,Observers,Bin.le
 	Q=Matrix(Q)	
 
 	Meta=list(n.transects=n.transects,S=S,spat.ind=spat.ind,Area.hab=Area.hab,Area.trans=Area.trans,
-			Mapping=Mapping,Covered.area=Covered.area,n.Observers=n.Observers,M=M,stacked.names=stacked.names,
-			factor.ind=factor.ind,Det.formula=Det.formula,Levels=Levels,i.binned=i.binned,dist.pl=dist.pl,
-			G.transect=G.transect,N.transect=N.transect,grps=grps,n.bins=n.bins,Bin.length=Bin.length,n.ind.cov=n.ind.cov,
-			Cov.prior.pdf=Cov.prior.pdf,Cov.prior.parms=Cov.prior.parms,Cov.prior.fixed=Cov.prior.fixed,point.ind=point.ind,fix.tau.nu=fix.tau.nu,srr=srr,srr.tol=srr.tol)
+			Adj=Adj,Mapping=Mapping,Covered.area=Covered.area,
+			G.transect=G.transect,fix.tau.nu=fix.tau.nu,srr=srr,srr.tol=srr.tol)
 		
 	if(adapt==TRUE){
 		cat('\n Beginning adapt phase \n')
-		Out=mcmc_ds(Par=Par,Data=Data,cur.iter=Control$adapt,adapt=1,Control=Control,DM.hab=DM.hab,DM.det=DM.det,Q=Q,Prior.pars=Prior.pars,Meta=Meta)
+		Out=mcmc_ds(Par=Par,Data=Data,cur.iter=Control$adapt,adapt=1,Control=Control,DM.hab=DM.hab,Q=Q,Prior.pars=Prior.pars,Meta=Meta)
 		cat('\n Beginning MCMC phase \n')
-		Out=mcmc_ds(Par=Par,Data=Data,cur.iter=Control$iter,adapt=0,Control=Out$Control,DM.hab=DM.hab,DM.det=DM.det,Q=Q,Prior.pars=Prior.pars,Meta=Meta)
+		Out=mcmc_ds(Par=Par,Data=Data,cur.iter=Control$iter,adapt=0,Control=Out$Control,DM.hab=DM.hab,Q=Q,Prior.pars=Prior.pars,Meta=Meta)
 	}
 	else{
 		cat('\n Beginning MCMC phase \n')
-		Out=mcmc_ds(Par=Par,Data=Data,cur.iter=Control$iter,adapt=0,Control=Control,DM.hab=DM.hab,DM.det=DM.det,Q=Q,Prior.pars=Prior.pars,Meta=Meta)
+		Out=mcmc_ds(Par=Par,Data=Data,cur.iter=Control$iter,adapt=0,Control=Control,DM.hab=DM.hab,Q=Q,Prior.pars=Prior.pars,Meta=Meta)
 	}
 	Out	
 }
-
-	
