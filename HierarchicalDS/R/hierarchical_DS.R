@@ -245,7 +245,7 @@ hierarchical_DS<-function(Dat,Adj,Area.hab=1,Mapping,Area.trans,Observers,Bin.le
 	Q=Matrix(Q)	
 
 	Meta=list(n.transects=n.transects,S=S,spat.ind=spat.ind,Area.hab=Area.hab,Area.trans=Area.trans,
-			Mapping=Mapping,Covered.area=Covered.area,n.Observers=n.Observers,M=M,stacked.names=stacked.names,
+			Adj=Adj,Mapping=Mapping,Covered.area=Covered.area,n.Observers=n.Observers,M=M,stacked.names=stacked.names,
 			factor.ind=factor.ind,Det.formula=Det.formula,Levels=Levels,i.binned=i.binned,dist.pl=dist.pl,
 			G.transect=G.transect,N.transect=N.transect,grps=grps,n.bins=n.bins,Bin.length=Bin.length,n.ind.cov=n.ind.cov,
 			Cov.prior.pdf=Cov.prior.pdf,Cov.prior.parms=Cov.prior.parms,Cov.prior.fixed=Cov.prior.fixed,point.ind=point.ind,fix.tau.nu=fix.tau.nu,srr=srr,srr.tol=srr.tol)
@@ -262,5 +262,3 @@ hierarchical_DS<-function(Dat,Adj,Area.hab=1,Mapping,Area.trans,Observers,Bin.le
 	}
 	Out	
 }
-
-	

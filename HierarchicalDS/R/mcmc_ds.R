@@ -37,6 +37,7 @@
 #'  "spat.ind"		Indicator for spatial dependence
 #'  "Area.hab"		Vector giving relative area covered by each strata
 #'  "Area.trans"	Vector giving fraction of area of relevant strata covered by each transect
+#' 	"Adj"			Adjacency matrix giving connectivity of spatial grid cells
 #'  "Mapping" 		Vector mapping each transect into a parent strata
 #'  "Covered.area"	Vector giving the fraction of each strata covered by transects
 #' 	"n.Observers"	Vector giving the number of observers that operated on each transect
@@ -98,9 +99,11 @@ mcmc_ds<-function(Par,Data,cur.iter,adapt,Control,DM.hab,DM.det,Q,Prior.pars,Met
 
 	if(Meta$srr==TRUE){
 		P.c=diag(Meta$S)-DM.hab%*%solve(crossprod(DM.hab,DM.hab),t(DM.hab))
-		Eigen.P.c=eigen(P.c)
-		Ind=which(Eigen.P.c$values>0.01)
-		L.t=Eigen.P.c$vectors[,Ind]
+		Omega=(P.c%*%Meta$Adj%*%P.c)*(Meta$S/sum(Adj))
+		Eigen=eigen(Omega)
+		if(max(Eigen$values)<srr.tol)cat(paste("\n Error: maximum eigenvalue (",max(Eigen$values),") < srr.tol; decrease srr.tol"))
+		Ind=which(Eigen$values>Meta$srr.tol)
+		L.t=Eigen$vectors[,Ind]
 		cat(paste("\n",length(Ind)," eigenvectors selected for spatially restricted regression \n"))
 		L=t(L.t)
 		Qt=L%*%Q%*%L.t
@@ -109,12 +112,19 @@ mcmc_ds<-function(Par,Data,cur.iter,adapt,Control,DM.hab,DM.det,Q,Prior.pars,Met
 		Theta=rnorm(n.theta,0,sqrt(1/Par$tau.eta))
 	}
 	
+	Sampled=unique(Meta$Mapping)
+	n.unique=length(Sampled)
+	Sampled.area.by.strata=rep(0,n.unique)
+	for(i in 1:Meta$n.transects)Sampled.area.by.strata[which(Sampled==Meta$Mapping[i])]=Sampled.area.by.strata[which(Sampled==Meta$Mapping[i])]+Meta$Area.trans[i]
+	
 	#initialize MCMC, Acceptance rate matrices
 	mcmc.length=(Control$iter-Control$burnin)/Control$thin
 	MCMC=list(N.tot=rep(0,mcmc.length),N=matrix(0,mcmc.length,Meta$S),G=matrix(0,mcmc.length,Meta$S),Hab=data.frame(matrix(0,mcmc.length,length(Par$hab))),Det=data.frame(matrix(0,mcmc.length,length(Par$det))),cor=rep(0,mcmc.length),tau.eta=rep(0,mcmc.length),tau.nu=rep(0,mcmc.length),Cov.par=matrix(0,mcmc.length,length(Par$Cov.par)))
 	colnames(MCMC$Hab)=colnames(DM.hab)
 	colnames(MCMC$Det)=colnames(DM.det)
 	Accept=list(cor=0,N=rep(0,Meta$n.transects),Nu=0,Hab=rep(0,length(Par$hab)))
+	Pred.N=matrix(0,mcmc.length,Meta$n.transects)
+	Obs.N=Pred.N
 	
 	#initialize random effect matrices for individual covariates if required
 	if(sum(1-Meta$Cov.prior.fixed)>0)RE.cov=array(0,dim=c(Meta$n.transects,max(Meta$M),Meta$n.ind.cov))
@@ -129,22 +139,29 @@ mcmc_ds<-function(Par,Data,cur.iter,adapt,Control,DM.hab,DM.det,Q,Prior.pars,Met
 		########## update abundance parameters at the strata scale   ################
 		
 		#update nu parameters (log lambda)
+		#1) for sampled cells
 		Mu=DM.hab%*%Par$hab+Par$Eta
 		#cat(paste("\n Mu",Mu))
 		#cat(paste("\n Nu",Par$Nu))
-		Grad1=sapply(Lam.index,'log_lambda_gradient',Mu=Mu,Nu=Par$Nu,N=Par$G,var.nu=1/Par$tau.nu)
-		Prop=Par$Nu+Control$MH.nu^2*0.5*Grad1+Control$MH.nu*rnorm(Meta$S)
-		new.post=log_lambda_log_likelihood(Log.lambda=Prop,DM=DM.hab,Beta=Par$hab,SD=sqrt(1/Par$tau.nu),N=Par$G)
-		old.post=log_lambda_log_likelihood(Log.lambda=Par$Nu,DM=DM.hab,Beta=Par$hab,SD=sqrt(1/Par$tau.nu),N=Par$G)
-		Grad2=sapply(Lam.index,'log_lambda_gradient',Mu=Mu,Nu=Prop,N=Par$G,var.nu=1/Par$tau.nu)
-		diff1=as.vector(Par$Nu-Prop-0.5*Control$MH.nu^2*Grad2)	
-		diff2=as.vector(Prop-Par$Nu-0.5*Control$MH.nu^2*Grad1)
+		G.sampled=rep(0,n.unique) #total number of groups currently in each sampled strata
+		for(i in 1:Meta$n.transects)G.sampled[which(Sampled==Meta$Mapping[i])]=G.sampled[which(Sampled==Meta$Mapping[i])]+Meta$G.transect[i]
+		Grad1=log_lambda_gradient(Mu=Mu,Nu=Par$Nu,Sampled=Sampled,Area=Sampled.area.by.strata,N=G.sampled,var.nu=1/Par$tau.nu)
+		Prop=Par$Nu
+		Prop[Sampled]=Par$Nu[Sampled]+Control$MH.nu^2*0.5*Grad1+Control$MH.nu*rnorm(n.unique)
+		new.post=log_lambda_log_likelihood(Log.lambda=Prop[Sampled],DM=DM.hab,Beta=Par$hab,SD=sqrt(1/Par$tau.nu),N=G.sampled,Sampled=Sampled,Area=Sampled.area.by.strata)
+		old.post=log_lambda_log_likelihood(Log.lambda=Par$Nu[Sampled],DM=DM.hab,Beta=Par$hab,SD=sqrt(1/Par$tau.nu),N=G.sampled,Sampled=Sampled,Area=Sampled.area.by.strata)
+		Grad2=log_lambda_gradient(Mu=Mu,Nu=Prop,Sampled=Sampled,Area=Sampled.area.by.strata,N=G.sampled,var.nu=1/Par$tau.nu)
+		diff1=as.vector(Par$Nu[Sampled]-Prop[Sampled]-0.5*Control$MH.nu^2*Grad2)	
+		diff2=as.vector(Prop[Sampled]-Par$Nu[Sampled]-0.5*Control$MH.nu^2*Grad1)
 		log.jump=0.5/Control$MH.nu^2*(sqrt(crossprod(diff1,diff1))-sqrt(crossprod(diff2,diff2))) #ratio of jumping distributions using e.g. Robert and Casella 2004 p. 319	
 		#cat(paste("\n iter=",iiter," new=",new.post," old=",old.post," jump=",log.jump))
 		if(runif(1)<exp(new.post-old.post+log.jump)){
 			Par$Nu=Prop
 			Accept$Nu=Accept$Nu+1	
 		}
+		#2) simulate nu for areas not sampled
+		Par$Nu[-Sampled]=rnorm(Meta$S-n.unique,Mu[-Sampled],1/sqrt(Par$tau.nu))
+		
 		
 		if(Meta$spat.ind==0){
 			if(Meta$srr==FALSE){
@@ -163,18 +180,18 @@ mcmc_ds<-function(Par,Data,cur.iter,adapt,Control,DM.hab,DM.det,Q,Prior.pars,Met
 				V.eta.inv <- cross.L + Par$tau.eta*Qt
 				M.eta <- solve(V.eta.inv, L%*%Dat.minus.Exp)
 				Theta <- M.eta + solve(chol(as.matrix(V.eta.inv)), rnorm(n.theta,0,1))
-				Eta=L.t%*%Theta
+				Par$Eta=as.numeric(L.t%*%Theta)
 				
 				#update tau.eta
-				Par$tau.eta <- rgamma(1, Meta$S/2 + Prior.pars$a.eta, as.numeric(crossprod(Theta, Qt %*% Theta)/2) + Prior.pars$b.eta)
+				Par$tau.eta <- rgamma(1, n.theta/2 + Prior.pars$a.eta, as.numeric(crossprod(Theta, Qt %*% Theta)/2) + Prior.pars$b.eta)
 			}
 		}
 		
 		#update tau_nu	 (precision for Poisson overdispersion)
 		Mu=DM.hab%*%Par$hab+Par$Eta
 		if(Meta$fix.tau.nu==FALSE){
-			Diff=Par$Nu-Mu
-			Par$tau.nu <- rgamma(1,Meta$S/2 + Prior.pars$a.nu, as.numeric(crossprod(Diff,Diff))/2 + Prior.pars$b.nu)
+			Diff=Par$Nu[Sampled]-Mu[Sampled]
+			Par$tau.nu <- rgamma(1,n.unique/2 + Prior.pars$a.nu, as.numeric(crossprod(Diff,Diff))/2 + Prior.pars$b.nu)
 		}
 		
 		#translate to lambda scale
@@ -559,7 +576,9 @@ mcmc_ds<-function(Par,Data,cur.iter,adapt,Control,DM.hab,DM.det,Q,Prior.pars,Met
 			MCMC$tau.eta[(iiter-Control$burnin)/Control$thin]=Par$tau.eta
 			MCMC$tau.nu[(iiter-Control$burnin)/Control$thin]=Par$tau.nu
 			MCMC$Cov.par[(iiter-Control$burnin)/Control$thin,]=Par$Cov.par
-			
+			Obs.N[(iiter-Control$burnin)/Control$thin,]=Meta$N.transect
+			Temp.G=Meta$Area.hab[Mapping]*Meta$Area.trans*exp(rnorm(Meta$n.transects,(DM.hab%*%Par$hab+Par$Eta)[Mapping],sqrt(1/Par$tau.nu)))
+			Pred.N[(iiter-Control$burnin)/Control$thin,]=Temp.G+rpois(Meta$n.transects,grp.lam*Temp.G)			
 		}
 		
 		if(iiter==100){
@@ -570,7 +589,7 @@ mcmc_ds<-function(Par,Data,cur.iter,adapt,Control,DM.hab,DM.det,Q,Prior.pars,Met
 		if((iiter%%1000)==1)cat(paste('iteration ', iiter,' of ',cur.iter,' completed \n'))
 	}
 	cat(paste('\n total elapsed time: ',difftime(Sys.time(),st,units="mins"),' minutes \n'))
-	Out=list(MCMC=MCMC,Accept=Accept,Control=Control)
+	Out=list(MCMC=MCMC,Accept=Accept,Control=Control,Obs.N=Obs.N,Pred.N=Pred.N)
 	Out
 }
 

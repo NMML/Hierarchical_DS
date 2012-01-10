@@ -54,13 +54,13 @@ run_spatial_sim=function(){
 	spat.ind=FALSE #dont' include spatial dependence unless there really is spatial structure!
 	fix.tau.nu=TRUE
 	srr=TRUE
-	srr.tol=0.2
+	srr.tol=0.5
 	grps=TRUE
 	M=Out1$True.G*3
 	M[which(M<10)]=15
 	#M=c(11:20)
 	#M=c(21:50)
-	Control=list(iter=270100,burnin=100,thin=100,MH.cor=0.2,MH.nu=.01,MH.beta=c(.2,.4),RJ.N=rep(5,S),adapt=1000)
+	Control=list(iter=3100,burnin=100,thin=100,MH.cor=0.2,MH.nu=.01,MH.beta=c(.2,.4),RJ.N=rep(5,S),adapt=100)
 	Inits=list(hab=c(log(150),0.5),tau.nu=100) #console1
 	Inits=list(hab=c(log(200),1),tau.nu=100) #console2
 	Inits=list(hab=c(log(150),1.5),tau.nu=100) #console3
@@ -73,14 +73,17 @@ run_spatial_sim=function(){
 	set.seed(8327331)   #console 3
 	set.seed(8327332)   #console 4
 	Out=hierarchical_DS(Dat=Dat,Adj=Adj,Area.hab=Area.hab,Mapping=Mapping,Area.trans=Area.trans,Observers=Observers,Bin.length=Bin.length,Hab.cov=Hab.cov,Obs.cov=Obs.cov,n.obs.cov=n.obs.cov,Hab.formula=Hab.formula,Det.formula=Det.formula,Cov.prior.pdf=Cov.prior.pdf,Cov.prior.parms=Cov.prior.parms,Cov.prior.fixed=Cov.prior.fixed,pol.eff=NULL,point.ind=TRUE,spat.ind=spat.ind,fix.tau.nu=fix.tau.nu,srr=srr,srr.tol=srr.tol,Inits=Inits,grps=grps,M=M,Control=Control,Levels=Levels,adapt=TRUE,Prior.pars=Prior.pars)
-    save(Out,file="Out4.Rdata")
+	plot_obs_pred(Out)
+	summary_N(Out)
+	
+	save(Out,file="Out4.Rdata")
 	
 	#plot estimated abundance
 	N.mean=apply(Out$MCMC$N,2,'mean')
 	Abund.df=data.frame(cbind(rep(c(sqrt(S):1),sqrt(S)),rep(c(1:sqrt(S)),each=sqrt(S)),round(as.vector(N.mean))))
 	colnames(Abund.df)=c("y","x","Abundance")
 	require(ggplot2)
-	crap<-ggplot(Abund.df,aes(x,y,fill=Abundance))+geom_tile()+scale_x_continuous(expand=c(0,0))+scale_y_continuous(expand=c(0,0))+scale_fill_gradient(low="white",high="black",limits=c(0,1000))+xlab("")+ylab("")
+	crap<-ggplot(Abund.df,aes(x,y,fill=Abundance))+geom_tile()+scale_x_continuous(expand=c(0,0))+scale_y_continuous(expand=c(0,0))+scale_fill_gradient(low="white",high="black",limits=c(0,300))+xlab("")+ylab("")
 	crap
 	
 }
