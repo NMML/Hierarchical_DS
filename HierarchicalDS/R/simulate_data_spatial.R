@@ -15,7 +15,7 @@
 simulate_data_spatial<-function(S,Observers,Adj,tau){
 	require(mvtnorm)
 	require(Matrix)
-	set.seed(2074278) #for 15 by 15?
+	set.seed(2074279) #for 15 by 15?
 	#set.seed(207433)
 	
 	if(sqrt(S)%%1 >0)cat("\nError: S should be a square number\n")

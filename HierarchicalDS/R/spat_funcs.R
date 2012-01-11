@@ -279,10 +279,10 @@ plot_obs_pred<-function(Out){
 #' @keywords summary
 #' @author Paul B. Conn
 summary_N<-function(Out){
-	a.linex=calc_linex_a(Out$Pred.G,Out$Obs.G)$minimum
-	Theta=exp(-a.linex*Out$MCMC$G)
+	a.linex=calc_linex_a(Out$Pred.N,Out$Obs.N)$minimum
+	Theta=exp(-a.linex*Out$MCMC$N)
 	Theta=-1/a.linex*log(apply(Theta,2,'mean'))
-	summary.N=list(mean=sum(apply(Out$MCMC$G,2,'mean')),median=sum(apply(Out$MCMC$G,2,'median')),linex=sum(Theta))
+	summary.N=list(mean=sum(apply(Out$MCMC$N,2,'mean')),median=sum(apply(Out$MCMC$N,2,'median')),linex=sum(Theta))
 	summary.N
 }
 

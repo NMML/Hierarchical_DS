@@ -60,7 +60,7 @@ run_spatial_sim=function(){
 	M[which(M<10)]=15
 	#M=c(11:20)
 	#M=c(21:50)
-	Control=list(iter=3100,burnin=100,thin=100,MH.cor=0.2,MH.nu=.01,MH.beta=c(.2,.4),RJ.N=rep(5,S),adapt=100)
+	Control=list(iter=31000,burnin=1000,thin=100,MH.cor=0.2,MH.nu=.01,MH.beta=c(.2,.4),RJ.N=rep(5,S),adapt=1000)
 	Inits=list(hab=c(log(150),0.5),tau.nu=100) #console1
 	Inits=list(hab=c(log(200),1),tau.nu=100) #console2
 	Inits=list(hab=c(log(150),1.5),tau.nu=100) #console3
@@ -83,7 +83,7 @@ run_spatial_sim=function(){
 	Abund.df=data.frame(cbind(rep(c(sqrt(S):1),sqrt(S)),rep(c(1:sqrt(S)),each=sqrt(S)),round(as.vector(N.mean))))
 	colnames(Abund.df)=c("y","x","Abundance")
 	require(ggplot2)
-	crap<-ggplot(Abund.df,aes(x,y,fill=Abundance))+geom_tile()+scale_x_continuous(expand=c(0,0))+scale_y_continuous(expand=c(0,0))+scale_fill_gradient(low="white",high="black",limits=c(0,300))+xlab("")+ylab("")
+	crap<-ggplot(Abund.df,aes(x,y,fill=Abundance))+geom_tile()+scale_x_continuous(expand=c(0,0))+scale_y_continuous(expand=c(0,0))+scale_fill_gradient(low="white",high="black",limits=c(0,1200))+xlab("")+ylab("")
 	crap
 	
 }

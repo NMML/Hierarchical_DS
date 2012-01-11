@@ -151,7 +151,15 @@ We treat each of these components separately, below.  Notation is largely define
 
 Previous attempts at incorporating spatial dependence in estimation from line transect data have largely focused on (thinned) point process models \cite{HedleyBuckland2004,JohnsonEtAl2010}.  However, greater computational efficiency is afforded by choosing from a class of areal spatial models, whereby space is discretized and abundance intensity is treated as constant within each spatial unit.  By it's very nature, this approach leads to a courser spatial surface than point process models, but the degree of courseness can be chosen by the user (e.g., by considering a particular grid granulation).  Given that ecological datasets are typically sparse, we do not expect to lose much precision in inferences about density-habitat relationships from this choice.
 
-For versatility and ease of implementation, we chose to employ a \emph{intrinsic conditionally autoregressive} (ICAR) areal spatial model, which is a type of \emph{Gaussian Markov Random Field} \cite{BesagEtAl1991,BesagKooperberg1995,RueHeld2005}.   Specification of an ICAR model starts with articulation of a spatial connectivity matrix, ${\bf C}$.  Let the landscape be descretized into $S$ distinct spatial units (e.g., grid cells).  Then ${\bf C}$ is an $(S \times S)$ dimensional matrix, with $C_{ij}=1$ if if spatial unit $i$ is a neighbor of unit $j$, and zero otherwise.  Letting $n_i=\sum_j C_{ij}$ denote the number of neighbors cell $i$ possesses,
+Letting $\nu_s$ give the log of abundance intensity at site $s \in {1,2,\hdots,S}$, we impose the following model:
+$$
+ \boldsymbol{\nu} \sim {\rm Normal}({\bf X}^{\rm hab}
+ \boldsymbol{\beta}^{\rm hab}+\boldsymbol{\eta},\tau_\nu^{-1}{\bf I}).
+$$
+Here, ${\bf X}^{\rm hab}$ gives a design matrix incorporating any predictor variables for abundance, $\boldsymbol{\beta}^{\rm hab}$ gives a vector of regression coefficients, and  $\boldsymbol{\eta}$ denotes a vector of spatial random effects.
+The resultant Poisson intensity is given by $\lambda_s=A_s \exp(\nu_s)$.  This formulation incorporates habitat covariates in a manner analagous to generalized linear models \cite{McCullaghNelder1989}, but also includes possible spatial autocorrelation and overdispersion relative to the Poisson distribution, two prevalent features of ecological datasets.  In cases where spatial random effects and overdispersion are confounded, one may simply fix $\tau_\nu$ to a small value.
+
+For versatility and ease of implementation, we chose to impose structure on the spatial random effects by means of a \emph{intrinsic conditionally autoregressive} (ICAR) areal spatial model, which is a type of \emph{Gaussian Markov Random Field} \cite{BesagEtAl1991,BesagKooperberg1995,RueHeld2005}.   Specification of an ICAR model starts with articulation of a spatial connectivity matrix, ${\bf C}$.  Let the landscape be discretized into $S$ distinct spatial units (e.g., grid cells).  Then ${\bf C}$ is an $(S \times S)$ dimensional matrix, with $C_{ij}=1$ if spatial unit $i$ is a neighbor of unit $j$, and zero otherwise.  Letting $n_i=\sum_j C_{ij}$ denote the number of neighbors cell $i$ possesses,
 we write the precision matrix of the ICAR process as
 $$
 \bQ_{ij} = \tau_{\rm hab}\left\{\begin{array}{ll}
@@ -162,15 +170,18 @@ $$
 where $\tau_{\rm hab}$ is a spatial precision parameter to be estimated.
 Given this formulation, the joint probability density function of spatial random effects, $\bn$, is multivariate normal:
 $$
-[\bn|\tau_{\rm hab}] = N(\mathbf{0},\bQ^{-1}).
+[\bn|\tau_{\rm hab}] = {\rm MVN}(\mathbf{0},\bQ^{-1}).
 $$
-
-Letting $\nu_s$ give the log of abundance intensity at site $s$, we impose the following model:
-$$
- \boldsymbol{\nu} \sim {\rm Normal}({\bf X}^{\rm hab}
- \boldsymbol{\beta}^{\rm hab}+\boldsymbol{\eta},\tau_\nu^{-1}{\bf I}).
-$$
-The resultant Poisson intensity is given by $\lambda_s=A_s \exp(\nu_s)$.  This formulation incorporates habitat covariates in a manner analagous to generalized linear models \cite{McCullaghNelder1989}, but also includes possible spatial autocorrelation and overdispersion relative to the Poisson distribution, two prevalent features of ecological datasets.
+In practice, it is often fount that this formulation permits too much flexibility.  In particular, (1) the spatial random effects can be confounded with fixed effect parameters \cite{ReichEtAl2006,HodgesReich2010}, and (2) the spectral decomposition
+of $\bQ^{-1}$ permits both positive and negative covariation among spatial grid cells at both fine- and course-scales \cite{HughesHaran2012}.  Our experience is that both of these issues can lead to spuriously high predictions of abundance in grid cells where sampling was never conducted.  As such, we reformulate the spatial ICAR model as suggested by Hughes and Haran \cite{HughesHaran2012} and Johnson et al. \cite{JohnsonEtAl2012}, using the following steps:
+\begin{enumerate}
+ \item Calculate the residual projection matrix, ${\bf P}^\bot = {\bf I}-{\bf X}({\bf X}^\prime{\bf X})^{-1}{\bf X}^\prime$.
+ \item Determine the Moran operator matrix, $\boldsymbol{\Omega}=S {\bf P}^\bot {\bf C}{\bf P}^\bot / {\rm sum}({\bf C})$.
+ \item Determine the eigenvalues, $\boldsymbol{\lambda}$, and eigenvectors, ${\bf V}$, of $\boldsymbol{\Omega}$.
+ \item Use a criterion on $\boldsymbol{\lambda}$ to limit the number of ``effective" spatial random effects.  For instance, limiting ${\bf V}$ to those for which accompanying eigenvalues are greater than 0.5 provides a reasonable level of smoothing \cite{JohnsonEtAl2012}.
+ \item Reassemble the selected eigenvectors from ${\bf V}$ into a new, reduced dimensional vector ${\bf K}$.
+ \item Now, $\boldsymbol{\eta}={\bf K}\boldsymbol{\theta}$, where $[\boldsymbol{\theta}|\tau_{\eta}]= {\rm MVN}({\bf 0},\tau_\eta{\bf K}^\prime {\bf Q} {\bf K})$.
+\end{enumerate}
 
 \subsubsection*{Local abundance model}
 Conditional on $\boldsymbol{\lambda}$ from the spatial abundance process model, we decompose abundance in a given grid cell $s$ into that included in the surveyed area of $s$, and that occurring in the unsurveyed area of $s$.  Let $G_{st}$ represent the number of groups of animals located in $s$ within the area surveyed by transect $t$, and $G_s^*$ be the number of groups located in $s$ outside of the surveyed area.  Then
