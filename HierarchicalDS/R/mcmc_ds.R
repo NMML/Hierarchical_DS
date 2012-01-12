@@ -177,8 +177,8 @@ mcmc_ds<-function(Par,Data,cur.iter,adapt,Control,DM.hab,DM.det,Q,Prior.pars,Met
 			else{
 				#Update Theta
 				Dat.minus.Exp=Par$Nu-DM.hab%*%Par$hab
-				V.eta.inv <- cross.L + Par$tau.eta*Qt
-				M.eta <- solve(V.eta.inv, L%*%Dat.minus.Exp)
+				V.eta.inv <- cross.L*Par$tau.nu + Par$tau.eta*Qt
+				M.eta <- solve(V.eta.inv, Par$tau.nu*L%*%Dat.minus.Exp)
 				Theta <- M.eta + solve(chol(as.matrix(V.eta.inv)), rnorm(n.theta,0,1))
 				Par$Eta=as.numeric(L.t%*%Theta)
 				
