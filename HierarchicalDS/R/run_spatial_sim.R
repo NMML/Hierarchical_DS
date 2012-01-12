@@ -54,13 +54,13 @@ run_spatial_sim=function(){
 	spat.ind=FALSE #dont' include spatial dependence unless there really is spatial structure!
 	fix.tau.nu=TRUE
 	srr=TRUE
-	srr.tol=0.5
+	srr.tol=0.8
 	grps=TRUE
 	M=Out1$True.G*3
 	M[which(M<10)]=15
 	#M=c(11:20)
 	#M=c(21:50)
-	Control=list(iter=27100,burnin=100,thin=100,MH.cor=0.2,MH.nu=.01,MH.beta=c(.2,.4),RJ.N=rep(5,S),adapt=1000)
+	Control=list(iter=7100,burnin=100,thin=100,MH.cor=0.2,MH.nu=.01,MH.beta=c(.2,.4),RJ.N=rep(5,S),adapt=1000)
 	Inits=list(hab=c(log(150),0.5),tau.nu=100) #console1
 	Inits=list(hab=c(log(200),1),tau.nu=100) #console2
 	#Inits=list(hab=c(log(150),1.5),tau.nu=100) #console3
@@ -82,7 +82,7 @@ run_spatial_sim=function(){
 	N.mean=exp(-Out$a.linex*Out$MCMC$G)
 	N.mean=-1/Out$a.linex*log(apply(N.mean,2,'mean'))
 	#N.mean=apply(Out$MCMC$N,2,'mean')
-	N.mean=apply(Out$MCMC$G,2,'mean') #for pois obs model
+	N.mean=apply(Out$MCMC$G,2,'median') #for pois obs model
 	Abund.df=data.frame(cbind(rep(c(sqrt(S):1),sqrt(S)),rep(c(1:sqrt(S)),each=sqrt(S)),round(as.vector(N.mean))))
 	colnames(Abund.df)=c("y","x","Abundance")
 	require(ggplot2)

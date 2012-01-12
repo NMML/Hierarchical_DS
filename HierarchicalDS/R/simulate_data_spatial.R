@@ -60,7 +60,7 @@ simulate_data_spatial<-function(S,Observers,Adj,tau){
 	Abund.df=data.frame(cbind(rep(c(sqrt(S):1),sqrt(S)),rep(c(1:sqrt(S)),each=sqrt(S)),round(as.vector(Abund))))
 	colnames(Abund.df)=c("y","x","Abundance")
 	require(ggplot2)
-	plot1<-ggplot(Abund.df,aes(x,y,fill=Abundance))+geom_tile()+scale_x_continuous(expand=c(0,0))+scale_y_continuous(expand=c(0,0))+scale_fill_gradient(low="white",high="black",limits=c(0,800))+xlab("")+ylab("")
+	plot1<-ggplot(Abund.df,aes(x,y,fill=Abundance))+geom_tile()+scale_x_continuous(expand=c(0,0))+scale_y_continuous(expand=c(0,0))+scale_fill_gradient(low="white",high="black",limits=c(0,300))+xlab("")+ylab("")
 	plot1<-plot1+geom_rect(data=df,aes(group=ids,xmin=x-1/8,xmax=x+1/8,ymin=y-.5,ymax=y+1.5),fill="maroon")
 	plot1
 	
