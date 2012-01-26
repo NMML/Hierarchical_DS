@@ -155,11 +155,12 @@ hierarchical_DS<-function(Dat,Adj,Area.hab=1,Mapping,Area.trans,Observers,Bin.le
 			N.transect[itrans]=0
 		}
 		#fill observer ids
-		Data[itrans,(n.Records[itrans]+1):M[itrans],1]=rep(Observers[1:n.Observers[itrans],itrans],(M[itrans]-n.Records[itrans])/n.Observers[itrans])
+		max.M=max(M)
+		Data[itrans,(n.Records[itrans]+1):max.M,1]=rep(Observers[1:n.Observers[itrans],itrans],(max.M-n.Records[itrans])/n.Observers[itrans])
 		#fill observer covariates
 		if(n.obs.cov>0){
 			for(icov in 1:n.obs.cov){
-				Data[itrans,(n.Records[itrans]+1):M[itrans],2+icov]=rep(Obs.cov[1:n.Observers[itrans],itrans,icov],(M[itrans]-n.Records[itrans])/n.Observers[itrans])
+				Data[itrans,(n.Records[itrans]+1):max.M,2+icov]=rep(Obs.cov[1:n.Observers[itrans],itrans,icov],(max.M-n.Records[itrans])/n.Observers[itrans])
 			}
 		}
 	}

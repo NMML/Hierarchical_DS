@@ -228,7 +228,14 @@ mcmc_ds<-function(Par,Data,cur.iter,adapt,Control,DM.hab,DM.det,Q,Prior.pars,Met
 			offdiag=which(Sigma!=1)
 			
 			if(a>0){ # proposal an addition
-				if(((Meta$G.transect[itrans]+a)*Meta$n.Observers[itrans])>=Meta$M[itrans])cat(paste('\n Warning: proposed abundance for transect ',itrans,' > M; consider increasing M value! \n'))
+				if(((Meta$G.transect[itrans]+a)*Meta$n.Observers[itrans])>=Meta$M[itrans]){
+					if(adapt==FALSE)cat(paste('\n Warning: proposed abundance for transect ',itrans,' > M; consider increasing M value! \n'))
+					else{
+						temp=floor(Meta$M[itrans]*1.25)
+						if(temp%%2==1)temp=temp+1
+						Meta$M[itrans]=min(temp,max(Meta$M))
+					}
+				}
 				else{
 					Cur.dat=Data[itrans,(n.Records[itrans]+1):(n.Records[itrans]+a*Meta$n.Observers[itrans]),]
 					if(is.vector(Cur.dat))Cur.dat=matrix(Cur.dat,1,length(Cur.dat))

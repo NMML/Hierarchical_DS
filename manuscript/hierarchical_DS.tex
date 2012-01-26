@@ -92,10 +92,15 @@ multiple-covariate, multiple-observer distance sampling data} }
 Paul B. Conn $^{1,\ast}$,
 Devin S. Johnson$^{1}$,
 Jeffrey L. Laake $^{1}$,
+Mevin Hooten $^{2}$,
+Jay M. Ver Hoef $^{1}$,
 Michael F. Cameron$^{1}$
 \\
-\bf{1} NOAA National Marine Mammal Laboratory, Alaska Fisheries Science Center,
+{\bf{1}} NOAA National Marine Mammal Laboratory, Alaska Fisheries Science Center,
 7600 Sand Point Way NE, Seattle, WA, 98115 U.S.A.
+\\
+{\bf{2}} U.S. Geological Survey, Colorado Cooperative Fish and Wildlife Research Unit, Colorado
+State University, Fort Collins, CO, USA
 \\
 $\ast$ E-mail: paul.conn@noaa.gov
 \end{flushleft}
@@ -119,12 +124,12 @@ Researchers have extended conventional distance sampling to account for a variet
 
 Conventional, design-based distance sampling estimators are typically obtained via a two step procedure, whereby one first fits a detection function to distance data, and then uses the fitted model to estimate density or abundance over the landscape. Recently, much attention in ecology has been given to incorporating process models for abundance into the estimation process \cite{RoyleEtAl2004,RoyleEtAl2007}.  Spatial autocorrelation is pervasive in ecology, and it's inclusion can permit more precise inferences about abundance because areas with little to no sampling are informed by their neighbors, in effect ``. . .borrowing strength from the ensemble" \cite{Morris1983}.  Including such a model can also permit better inferences about how animal density changes across the landscape. In many cases, inclusion of such a process model requires a shift to a model-based estimation perspective, whereby abundance or some proxy (density, abundance intensity) are estimated simultaneously with parameters of the detection function. Several authors recently modeled spatial dependence when analyzing distance sampling data \cite{HedleyBuckland2004,JohnsonEtAl2010} using point process likelihoods, but we know of no studies which simultaneously consider inclusion of spatial dependence, individual and covariate effects on detection probability, and the ability to incorporate data from multiple observers.
 
-Hierarchical models are a natural framework for simultaneously modeling abundance and detection probabilities, as observation models can be superimposed on an underlying model for abundance intensity.  Moore and Barlow \cite{MooreBarlow2011} recently used a hierarchical model to account for strata and year effects on underlying densities when analyzing line transect data, but did not attempt to model data from multiple observers or use individual covariates in estimation. Likewise, Schmidt et al. \cite{SchmidtEtAl2012} formulated a hierarchical model for single observer distance sampling data using data augmentation within WinBUGS software \cite{LunnEtAl2000}, borrowing ideas popularized in capture-recapture studies \cite{RoyleEtAl2007b,RoyleDorazio2008,Royle2009}.  Previously suggested by several authors for use with distance data \cite{RoyleDorazio2008,LinkBarker2010}, this latter approach has the advantage that individual covariates (such as distance and group size) can be modeled for unobserved groups of animals.
-However, this framework incorporates habitat and covariate effects at the level of individual inclusion probabilities (a Bernoulli model is assumed for inclusion of latent groups of animals), which makes it difficult to generalize.  For instance, accommodating transects and grid cells of unequal length is problematic. We argue that incorporating habitat and covariate effects on Poisson (or quasi-Poisson) abundance intensities is a better choice because the Poisson intensity scales linearly with area, making it easy to deal with transects and spatial grid cells that are of different length.
+Hierarchical models are a natural framework for simultaneously modeling abundance and detection probabilities, as observation models can be superimposed on an underlying model for abundance intensity.  Moore and Barlow \cite{MooreBarlow2011} and Chelgren et al. \cite{ChelgrenEtAl2011} recently used hierarchical models to account for strata and year effects on underlying densities when analyzing line transect data, but did not attempt to model data from multiple observers or use individual covariates in estimation. Similarly, Schmidt et al. \cite{SchmidtEtAl2012} borrowed ideas popularized in capture-recapture studies \cite{RoyleEtAl2007b,RoyleDorazio2008,Royle2009} to formulate a hierarchical model for distance data that was based on data augmentation.  Previously suggested by several authors for use with distance data \cite{RoyleDorazio2008,LinkBarker2010}, data augmentation has the advantage that individual covariates (such as distance and group size) can be modeled for unobserved groups of animals provided that a parametric distribution is specified for missing covariates (possibly with parameters to be estimated).
+However, their framework incorporates habitat and covariate effects at the level of individual inclusion probabilities (a Bernoulli model was assumed for inclusion of latent groups of animals), which makes it difficult to generalize.  For instance, accommodating transects and grid cells of unequal length is problematic. We argue that incorporating habitat and covariate effects on Poisson (or quasi-Poisson) abundance intensities is a better choice because the Poisson intensity scales linearly with area, making it easy to cope with transects and spatial grid cells that are of different length.
 
-In this paper, we develop hierarchical models for distance sampling data that permit habitat covariates and spatial dependency to influence abundance intensity, while simultaneously modeling effects of covariates on detection probability and permitting multiple observer effects (including ability to have $<$100\% detection on the transect line and to accommodate dependence among observer detections).  At the landscape scale, we employ an intrinsic conditionally autoregressive (ICAR) spatial model \cite{BesagEtAl1991,BesagKooperberg1995,RueHeld2005} to account for habitat covariates and spatial dependency.  Building upon previous work by Durban and Elston \cite{DurbanElston2005} in the context of mark-recapture modeling, our approach for modeling detections and abundance at the transect level is based on data augmentation \cite{TannerWong1987,RoyleEtAl2007b}, using a reversible jump Markov chain Monte Carlo (RJMCMC) algorithm \cite{CarlinChib1995,Green1995} to sample abundance and individual covariates. We provide flexible, user friendly R software for model fitting.
+In this paper, we develop hierarchical models for distance sampling data that permit habitat covariates and spatial dependency to influence abundance intensity, while simultaneously modeling effects of covariates on detection probability and permitting multiple observer effects (including ability to have $<$100\% detection on the transect line and to accommodate dependence among observer detections).  At the landscape scale, we employ a spatially restricted version \cite{ReichEtAl2006,HughesHaran2012} of an intrinsic conditionally autoregressive (ICAR) spatial model \cite{BesagEtAl1991,BesagKooperberg1995,RueHeld2005} to account for habitat covariates and spatial dependency.  Building upon previous work by Durban and Elston \cite{DurbanElston2005} in the context of mark-recapture modeling, our approach for modeling detections and abundance at the transect level is based on data augmentation \cite{TannerWong1987,RoyleEtAl2007b}, using a reversible jump Markov chain Monte Carlo (RJMCMC) algorithm \cite{CarlinChib1995,Green1995} to sample abundance and individual covariates. We provide flexible, user friendly R software for model fitting.
 
-Our modeling approach is applicable to a variety of taxa, but we are particularly motivated by the need to produce density estimates for phocid seals in the Bering Sea.  After describing our proposed model and illustrating it's properties with a simulated dataset, we thus turn our attention to estimating abundance and density of ice seals (bearded, ringed, ribbon, and spotted seals) from helicopter transects conducted in the Bering Sea in 2008.  In addition to group size, we use species as an additional individual covariate on detection probabilities.
+Our modeling approach is applicable to a variety of taxa, but we are particularly motivated by the need to produce density estimates for ice-associated seals in the Bering Sea.  After describing our proposed model and illustrating it's properties with a simulated dataset, we thus turn our attention to estimating abundance and density of ice seals (bearded, ringed, ribbon, and spotted seals) from helicopter transects conducted in the Bering Sea in 2008.  In addition to group size, we use species as an additional individual covariate on detection probabilities.
 
 % Results and Discussion can be combined.
 
@@ -149,7 +154,7 @@ We treat each of these components separately, below.  Notation is largely define
 
 \subsubsection*{Spatial model}
 
-Previous attempts at incorporating spatial dependence in estimation from line transect data have utilized both (thinned) point process models \cite{HedleyBuckland2004,JohnsonEtAl2010}, and areal spatial models \cite{SchmidtEtAl2012}.  Greater computational efficiency is afforded by choosing an areal spatial model, whereby space is discretized and abundance intensity is treated as constant within each spatial unit.  By it's very nature, this approach leads to a courser spatial surface than point process models, but the degree of courseness can be chosen by the user (e.g., by considering a particular grid granulation).  Given that ecological datasets are typically sparse, we do not expect to lose much precision in inferences about density-habitat relationships from this choice.
+Previous attempts at incorporating spatial dependence in estimation from line transect data have utilized both (thinned) point process models \cite{HedleyBuckland2004,JohnsonEtAl2010}, and areal spatial models \cite{SchmidtEtAl2012}.  Greater computational efficiency is afforded by choosing an areal spatial model, whereby space is discretized and abundance intensity is treated as constant within each spatial unit.  By it's very nature, this approach leads to a courser spatial surface than point process models, but the degree of courseness can be chosen by the user (e.g., by specifying a particular grid granulation).  Given that ecological datasets are typically sparse, we do not expect to lose much precision in inferences about density-habitat relationships from this choice.
 
 Letting $\nu_s$ give the log of abundance intensity at site $s \in {1,2,\hdots,S}$, we impose the following model:
 $$
@@ -178,7 +183,7 @@ of $\bQ^{-1}$ permits both positive and negative covariation among spatial grid 
  \item Calculate the residual projection matrix, ${\bf P}^\bot = {\bf I}-{\bf X}({\bf X}^\prime{\bf X})^{-1}{\bf X}^\prime$.
  \item Determine the Moran operator matrix, $\boldsymbol{\Omega}=S {\bf P}^\bot {\bf C}{\bf P}^\bot / {\rm sum}({\bf C})$.
  \item Determine the eigenvalues, $\boldsymbol{\lambda}$, and eigenvectors, ${\bf V}$, of $\boldsymbol{\Omega}$.
- \item Use a criterion on $\boldsymbol{\lambda}$ to limit the number of ``effective" spatial random effects.  For instance, limiting ${\bf V}$ to those for which accompanying eigenvalues are greater than 0.5 provides a reasonable level of smoothing \cite{JohnsonEtAl2012}.
+ \item Use a criterion on $\boldsymbol{\lambda}$ to limit the number of ``effective" spatial random effects.  For instance, limiting ${\bf V}$ to those for which accompanying eigenvalues are greater than 0.5 often provides a reasonable level of smoothing \cite{HughesHaran2012}.
  \item Reassemble the selected eigenvectors from ${\bf V}$ into a new, reduced dimensional matrix ${\bf K}$.
  \item Calculate $\boldsymbol{\eta}={\bf K}\boldsymbol{\theta}$, where $[\boldsymbol{\theta}|\tau_{\eta}]= {\rm MVN}({\bf 0},{\bf K}^\prime \bQ {\bf K})$.
 \end{enumerate}
@@ -274,7 +279,7 @@ Total abundance is then calculated as $N=\sum_s (N_s+N_s^*)$.
 
 \subsubsection*{Prior distributions}
 
-Bayesian analysis requires specification of prior distributions for $\tau_\eta$, $\tau_\nu$, $\boldsymbol{\beta}^{\rm hab}$, $\boldsymbol{\beta}^{\rm det}$, and $\boldsymbol{\theta}$.  We chose a conjugate ${\rm Gamma}(\alpha,\beta)$ priors for $\tau_\eta$, so that full conditional distributions were available in closed form and could be sampled directly with Gibbs sampling; we chose $\alpha=1$ and $\beta=0.01$ to put ample weight on plausible parameter values. We had difficulty estimating overdispersion and spatial random effects simultaneously, so fix $\tau_\nu=100$ in all applications (though our software includes the capability of specifying a gamma prior for $\tau_\nu$). 
+Bayesian analysis requires specification of prior distributions for $\tau_\eta$, $\tau_\nu$, $\boldsymbol{\beta}^{\rm hab}$, $\boldsymbol{\beta}^{\rm det}$, and $\boldsymbol{\theta}$.  We chose a conjugate ${\rm Gamma}(\alpha,\beta)$ priors for $\tau_\eta$, so that full conditional distributions were available in closed form and could be sampled directly with Gibbs sampling; we chose $\alpha=1$ and $\beta=0.01$ to put ample weight on plausible parameter values. We had difficulty estimating overdispersion and spatial random effects simultaneously, so fix $\tau_\nu=100$ in all applications (though our software includes the capability of specifying a gamma prior for $\tau_\nu$).
 
 We gave the $\beta$, which are analagous to regression parameters, flat (improper) priors, which is a common strategy in regression problems (e.g., \cite{GelmanEtAl2004}, Chapter 14).  In contrast, we tended to impart more structure to the hyper-priors for individual covariates to improve sampling efficiency.  In our two subsequent examples, we incorporated a ${\rm Gamma}(1.1,1.0)$ distribution for the log of group size, and a ${\rm Uniform}(0,1)$ distribution for $\sigma$ (the standard deviation for log group size random effects); for the ice seal example, species was modeled with a Dirichlet(10,10,10,10,10) distribution, the conjugate prior for the categorical distribution.  Pilot analyses suggested little sensitivity of results to our choice of prior distributions.
 
@@ -336,7 +341,7 @@ Following the addition/deletion step, the next step in our RJMCMC estimation sch
 $$
 [Y_{ij1}=0,Y_{ij2}=0|{\bf x}_{ij},\boldsymbol{\beta},{\bf X}_{ij1},{\bf X}_{ij2}]][x_{ijc}|\boldsymbol{\theta}],
 $$
-for $i \in (G_i^{\rm obs}+1,G_{j}^{\rm obs}+2,\hdots,G_j)$, 
+for $i \in (G_i^{\rm obs}+1,G_{j}^{\rm obs}+2,\hdots,G_j)$,
 which is just the observation model (e.g. Eq. \ref{eq:obs.mod}) multiplied by the prior distribution of the individual covariate.  We use a Metropolis-Hastings step to sample from this distribution.
 
 For groups $G_j+1,G_j+2, \hdots,M$ (i.e., ``pseudo-animals" not in the population), we simulate covariates directly from Eq. \ref{eq:cov.dist}.  These distributions are used in place of the pseudo-prior distributions suggested by Durban and Elston \cite{DurbanElston2005}.  The difference between our approaches is that in the present work we obtain posterior samples of the parameters specified in  $f()$ (e.g., the parameters describing the underlying covariate distribution), while Durban and Elston fix these parameters.  Simulations (see below) suggest that this approach results in estimates with reasonable properties, and also bypasses the need to tediously tune pseudo-prior distributions.  Conforming to a priori expectations, we used a uniform distribution for simulation of pseudo-animal distances (note that simulating from $[d_{ij} | Y_{ijk}=0]$ instead leads to positively biased abundance estimates!).
@@ -385,29 +390,34 @@ This distribution may be sampled directly via Gibbs sampling. Owing to the spars
 
 In applications with spatial restriction, $\boldsymbol{\eta} = {\bf K}\boldsymbol{\theta}$, so we instead need to sample $\boldsymbol{\theta}$.  In this case, we redefine the precision matrix of the ICAR process as ($\bQ_\theta={\bf K}^\prime \bQ {\bf K}$), and write the full conditional distribution for $\boldsymbol{\theta}$ as
 $$
-[\boldsymbol{\theta}|\hdots] = {\rm Normal}(\Sigma_\theta {\bf K}^\prime (\boldsymbol{\nu}-{\bf X}^{\rm hab}\boldsymbol{\beta}^{\rm hab}),\Sigma_\theta),
+[\boldsymbol{\theta}|\hdots] = {\rm Normal}(\Sigma_\theta \tau_\nu {\bf K}^\prime (\boldsymbol{\nu}-{\bf X}^{\rm hab}\boldsymbol{\beta}^{\rm hab}),\Sigma_\theta),
 $$
-where $\Sigma_\theta=({\bf K}^\prime {\bf K} + {\bf Q_\theta})^{-1}$ \cite{HughesHaran2012,JohnsonEtAl2012}.
+where $\Sigma_\theta=(\tau_\nu {\bf K}^\prime {\bf K} + {\bf Q_\theta})^{-1}$ \cite{HughesHaran2012,JohnsonEtAl2012}.
 
- 
+
 
 \subsubsection*{Sampling $\tau_\eta$}
 Given a $\textrm{Gamma}(\alpha_\eta,\beta_\eta)$ prior, $\tau_\eta$ may be directly sampled using
 $$
 \tau_\eta \sim \textrm{Gamma}\left( 0.5(S-1)+\alpha_\eta,0.5\boldsymbol{\eta}^\prime {\bf Q} \boldsymbol{\eta}+\beta_\eta \right).
 $$
-When spatial restriction is employed, 
+When spatial restriction is employed,
 $$
 \tau_\eta \sim \textrm{Gamma}\left( 0.5(n-1)+\alpha_\eta,0.5\boldsymbol{\theta}^\prime \bQ_\theta \boldsymbol{\theta} +\beta_\eta \right),
 $$
 where $n$ gives the length of $\boldsymbol{\theta}$.
 
 \subsubsection*{Sampling $\boldsymbol{\nu}$}
-We simultaneously updated the entire vector $\boldsymbol{\nu}$ using a Langevin-Hastings algorithm \cite{RobertCasella2004}.  The Langevin-Hastings algorithm utilizes the numerical gradient of the full conditional distribution to make more efficient proposals, which are accepted or rejected based on a modified Metropolis ratio.  The full conditional distribution for $\boldsymbol{\nu}$ needed to perform Langevin-Hastings updates is given by
+We used different strategies for updating $\nu_s$ depending on whether or not sampling was conducted in strata $s$. To update $\nu_s$ for cells where sampling was not conducted, we simulated $\nu_s$ directly using
 $$
-\left[ \boldsymbol{\nu} | \hdots \right] = \textrm{Normal}\left(\boldsymbol{\nu};{\bf X}^{\rm hab}\boldsymbol{\beta}^{\rm hab}+\boldsymbol{\eta},\tau_\nu^{-1} {\bf I} \right) \prod_{i=1}^S \textrm{Poisson} \left( G_i; \exp(\nu_i) \right),
+\nu_s \sim {\rm Normal}([{\bf X}^{\rm hab} \boldsymbol{\beta}^{\rm hab}]_s+\eta_s,\tau_\nu^{-1}).
 $$
-where {\bf I} is the $S\times S$ identity matrix.
+We simultaneously updated the remaining elements of $\boldsymbol{\nu}$ using
+a Langevin-Hastings algorithm \cite{RobertCasella2004}.  The Langevin-Hastings algorithm utilizes the numerical gradient of the full conditional distribution to make more efficient proposals, which are accepted or rejected based on a modified Metropolis ratio.  The full conditional distribution for $\boldsymbol{\nu}$ needed to perform Langevin-Hastings updates is given by
+$$
+\left[ \boldsymbol{\nu} | \hdots \right] = \textrm{Normal}\left(\boldsymbol{\nu};{\bf X}^{\rm hab}\boldsymbol{\beta}^{\rm hab}+\boldsymbol{\eta},\tau_\nu^{-1} {\bf I} \right) \prod_i \textrm{Poisson} \left( G_i; \exp(\nu_i) \right),
+$$
+where {\bf I} is an identity matrix.
 
 \subsubsection*{Sampling $\tau_\nu$}
 As with $\tau_\eta$, $\tau_\nu$ may be directly sampled using
@@ -426,7 +436,7 @@ $$
 			    \tilde{Y}_{ijk}-\rho_{ij}\tilde{Y}_{ij,3-k} & & O_j=2
 		\end{array}, \right.
 $$
-we loosely arrive at the model
+we can show that
 $$
 \acute{{\bf Y}} \sim {\rm Normal}({\bf X} \boldsymbol{\beta}^{\rm det},\boldsymbol{\Sigma}),
 $$
@@ -486,10 +496,19 @@ We developed generalized computing code to conduct MCMC estimation, which we imp
 
 \subsection*{Simulated data}
 
-We generated a simulated dataset and analyzed it with our hierarchical model to ensure that model parameters could be properly identified and that abundance estimates were reasonable.  The log of abundance intensity was simulated on a 15 by 15 grid assuming a positive relationship with latitude and spatially correlated error induced via an ICAR process with precision parameter $\tau_\nu=15$ (Fig. \ref{fig:sim_landscape}).  A total of 15 transects were simulated at the longitudinal midpoints of grid cells; latitudinal placement was uniformly distributed   The width of each transect was assumed to encompass 25\% of each grid cell.
+We generated two simulated datasets and analyzed them with our hierarchical model to ensure that model parameters could be properly identified and that abundance estimates were reasonable.  In the first simulated landscape, the log of abundance intensity was simulated on a 15 by 15 grid assuming a negative relationship with latitude and spatially correlated error induced via an ICAR process with precision parameter $\tau_\nu=15$ (Fig. \ref{fig:sim_landscape}).  A total of 15 transects were simulated at the longitudinal midpoints of grid cells; latitudinal placement was uniformly distributed   The width of each transect encompassed 25\% of each grid cell.
 
-After laying down virtual transects, we simulated group abundance and species composition for each transect-grid cell combination.  The group size for group $i$ of transect $j$ was set to $(1+W_{ij})$, where $W_{ij} \sim \textrm{Poisson}(3)$, while species was drawn from a $\textrm{multinomial}(0.1,0.2,0.3,0.4)$ distribution (assuming four possible species).
-Detection data were simulated by applying an assumed detection function that was a function of multiple covariates.  Odd numbered transects were allotted two observers, while even numbered transects were allotted one observer; in all cases, observers were picked randomly from a pool of 3 total observers with different underlying detection probabilities.  The assumed detection function was made to be a function of observer, distance, species, and group size.  If multiple observers were present, correlation between observers was modeled as a linearly increasing function of distance on the probit scale, with a maximum value of 0.5 (at the farthest distance bin).  Distances were recorded as one of 5 equally spaced bins.
+For the second landscape, we generated abundance intensities that radially decreased from two ``hotspots," corresponding to a patchy population (Fig. \ref{fig:sim_landscape}).  In this case, we used a 12 by 12 grid, and increased sampling coverage by using 24 simulated transects.  We utilized spatially balanced sampling for this simulation, using the R package {\tt spsamp} to place transects on the landscape using a generalized random-tessellation design \cite{StevensOlsen2004}.
+
+After laying down virtual transects, we simulated group abundance and species composition for each transect-grid cell combination.  The group size for group $i$ of transect $j$ was set to $(1+W_{ij})$, where $W_{ij} \sim \textrm{Poisson}(3)$, while species was drawn from a $\textrm{categorical}(0.5,0.3,0.2)$ distribution (assuming three possible species).
+Detection data were simulated by applying an assumed detection function that was a function of multiple covariates.  Each transect was assigned two observers; in all cases, observers were picked randomly from a pool of 3 total observers with different underlying detection probabilities.  The assumed detection function was made to be a function of observer, distance, species, and group size.  If multiple observers were present, correlation between observers was modeled as a linearly increasing function of distance on the probit scale, with a maximum value of 0.5 (at the farthest distance bin).  When detections occurred, distances were recorded as belonging to one of 5 equally spaced bins.
+
+For the first simulated landscape, abundance intensity was modeled as a linear function of latitude, and detection probability was modeled using the same functional form and covariates used to generate the data. We fitted two Markov chains of length 220,000 with random starting values this dataset.  Convergence, determined by examining trace plots and other standard convergence diagnostics (cf. \cite{GelmanEtAl2004}), occurred after $\approx 20,000$ iterations, so the final 200,000 iterations of each chain were combined for inference.  After experimenting with several levels of spatial restriction, we selected a model with a reduced rank, spatially restricted (RRSR) model for spatial dependence, where only eigenvectors with accompanying eigenvalues $> 0.8$ were included in ${\bf K}$, and $\tau_\nu$ was fixed to 100.  Models with a lower threshold often resulted in posterior predictions of abundance that were too high in grid cells where there were large patches of unsampled terrain between transects.
+
+For the second simulated landscape, we fitted an intercept-only model for abundance intensity, trying to recover spatial patterns purely with aid of spatial random effects (the same functional form for the detection model used to simulate data was once again provided to the estimation model).  In this case, increased spatial balance and sampling intensity enhanced the stability of estimation.  An RRSR model with spatial effects limited to eigenvalues $> 0.5$ seemed to provide a reasonable level of spatial structure, and convergence to the posterior distribution appeared to occur after $\approx 5,000$ iterations.  Two Markov chains of length 25,000 were simulated, with the final 20,000 iterations being combined to yield a sample of 40,000 from the posterior distribution.
+
+For both landscapes, estimated parameters were close to the values used to simulate the data (Figures \ref{fig:land1_post_truth}- \ref{fig:land2_post_truth}).  The qualitative pattern in abundance over the landscape was also recovered (Figure \ref{fig:sim_landscape}), albeit with greater smoothness.  Specifying a smooth spatial model was particularly important for the first simulated landscape, where finer-scale models resulted in inflated abundance predictions in areas with large gaps between simulated transects, ostensibly because a better fit could be obtained by bending the spatial surface up in regions where there were no data to better match data in sampled cells.
+
 
 \subsection*{Ice seals in the Bering Sea}
 
@@ -497,7 +516,7 @@ We collected data from line transect seal surveys conducted from a ??? helicopte
 
 Need more help here on distance sampling protocols used...(distance bins, etc.)
 
-Section on environmental covariates used (latitude, longtitude?)
+Section on environmental covariates used (latitude, longitude?)
 
 
 \section*{Discussion}
@@ -537,12 +556,31 @@ for distance data}. Individual nodes indicate a parameter or vector of parameter
 
 \begin{figure}
 \begin{center}
-\includegraphics[width=0.95\textwidth]{sim_habitat_true.eps}
+\includegraphics[width=0.95\textwidth]{SimEst.eps}
 \end{center}
-\caption{{\bf Simulated abundance over a landscape used for calibrating hierarchical distance sampling model}.  Vertical transects are superimposed, and are assumed to cover 1/4 of the area of each grid cell they intersect.}
+\caption{{\bf Simulated and estimated abundance for the two virtual landscapes used to calibrate the hierarchical distance sampling model}. Top panels give simulated abundance for models with (A) decreasing trend along the y-axis together with an unrestricted intrinsic conditionally autoregressive (ICAR) process on abundance intensity, and (B) two abundance ``hotspots." Vertical (magenta) transects are superimposed, covering 1/4 of the area of each grid cell they intersect.  Corresponding estimated abundance surfaces are presented in (C) and (D), and are obtained via posterior predictions from the hierarchical distance sampling model with restricted ICAR random effects.}
 \label{fig:sim_landscape}
 \end{figure}
 \clearpage
+
+\begin{figure}
+\begin{center}
+\includegraphics[width=0.95\textwidth]{land1_post_truth.eps}
+\end{center}
+\caption{{\bf Posterior distributions and true values of model parameters for simulated landscape 1}. Kernel density estimates of posterior distributions are in black, with true values used to simulate data represented as red vertical lines.}
+\label{fig:land1_post_truth}
+\end{figure}
+\clearpage
+
+\begin{figure}
+\begin{center}
+\includegraphics[width=0.95\textwidth]{land2_post_truth.eps}
+\end{center}
+\caption{{\bf Posterior distributions and true values of model parameters for simulated landscape 2}. Kernel density estimates of posterior distributions are in black; true values used to simulate data are represented by red vertical lines.}
+\label{fig:land2_post_truth}
+\end{figure}
+\clearpage
+
 
 \section*{Tables}
 
