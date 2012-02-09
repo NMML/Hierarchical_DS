@@ -116,24 +116,26 @@ We'll do the abstract last...
 
 \section*{Introduction}
 
-Distance sampling \cite{BucklandEtAl2001} is often used to estimate the density or abundance of animal populations, and is a central component to many inventory and monitoring programs.  When animals are detectable from the air, from vessels at sea, or by other means (e.g. avian auditory counts), distance sampling provides a means to correct for imperfect detection in animal surveys without having to physically capture and mark animals.  Correcting for imperfect detection is necessary when estimating absolute abundance, and is also viewed by many as an essential component of trend estimation because trends in detectability are typically confounded with trends in abundance unless detectability is explicitly estimated \cite{Buckland2006,NicholsEtAl2009}.  For these reason, practitioners routinely use distance sampling in contemporary transect surveys of marine mammals, sea birds, and passerines.
+Distance sampling \cite{BucklandEtAl2001} is often used to estimate the density or abundance of animal populations, and is a central component to many inventory and monitoring programs.  When animals are detectable from the air, from vessels at sea, or by other means (e.g. avian auditory counts), distance sampling provides a way to correct for imperfect detection in animal surveys without having to physically capture and mark animals.  Correcting for imperfect detection is necessary when estimating absolute abundance, and is also viewed by many as an essential component of trend estimation because trends in detectability are typically confounded with trends in abundance unless detectability is explicitly estimated \cite{Buckland2006,NicholsEtAl2009}.  For these reasons, practitioners routinely use distance sampling in contemporary transect surveys of marine mammals, sea birds, and passerines.
 
-In it's canonical form (e.g. \cite{BurnhamEtAl1980}), distance sampling may be viewed an extension of strip transect sampling, whereby an observer travels along transects (often selected via systematic sampling), noting the perpendicular distance of groups of animals from the line.  Analysts then fit models to distance data to correct for decreasing detection probabilities as a function of distance from the line, and calculate estimates of animal abundance or density using formulae that correct for average group size, the proportion of area surveyed, and the estimated probability of detection.
+In its canonical form (e.g. \cite{BurnhamEtAl1980}), distance sampling may be viewed an extension of strip transect sampling, whereby an observer travels along transects (often selected via systematic sampling), noting the perpendicular distance of groups of animals from the line.  Analysts then fit models to distance data to correct for decreasing detection probabilities as a function of distance from the line, and calculate estimates of animal abundance or density using formulae that correct for average group size, the proportion of area surveyed, and the estimated probability of detection.
 
 Researchers have extended conventional distance sampling to account for a variety of complications that arise in real life sampling scenarios.  Several studies have utilized multiple observers to relax the assumption of 100\% detection on the transect line \cite{BorchersEtAl1998}, or to model heterogeneity in detection as a function of distance \cite{BorchersEtAl2006,BucklandEtAl2010}, both of which cause negative bias in abundance estimates.  Others have accounted and adjusted for the effects of covariates on detection probabilities \cite{DrummerMcdonald1987,RamseyEtAl1987,MarquesBuckland2003}, which can be particularly problematic if associated with individual groups of animals.  For instance, if higher group sizes lead to higher detection probabilities, the mean observed group size will often be higher than the population mean, leading to a positively biased abundance estimator if not explicitly accounted for \cite{DrummerMcdonald1987}.
 
-Conventional, design-based distance sampling estimators are typically obtained via a two step procedure, whereby one first fits a detection function to distance data, and then uses the fitted model to estimate density or abundance over the landscape. Recently, much attention in ecology has been given to incorporating process models for abundance into the estimation process \cite{RoyleEtAl2004,RoyleEtAl2007}.  Spatial autocorrelation is pervasive in ecology, and it's inclusion can permit more precise inferences about abundance because areas with little to no sampling are informed by their neighbors, in effect ``. . .borrowing strength from the ensemble" \cite{Morris1983}.  Including such a model can also permit better inferences about how animal density changes across the landscape. In many cases, inclusion of such a process model requires a shift to a model-based estimation perspective, whereby abundance or some proxy (density, abundance intensity) are estimated simultaneously with parameters of the detection function. Several authors recently modeled spatial dependence when analyzing distance sampling data \cite{HedleyBuckland2004,JohnsonEtAl2010} using point process likelihoods, but we know of no studies which simultaneously consider inclusion of spatial dependence, individual and covariate effects on detection probability, and the ability to incorporate data from multiple observers.
+Conventional, design-based distance sampling estimators are typically obtained via a two step procedure, whereby one first fits a detection function to distance data, and then uses the fitted model to estimate density or abundance over the landscape. Recently, much attention in ecology has been given to incorporating process models for abundance into the estimation procedure \cite{RoyleEtAl2004,RoyleEtAl2007}.  Spatial autocorrelation is pervasive in ecology, and its inclusion can permit more precise inferences about abundance because areas with little to no sampling are informed by their neighbors, in effect ``. . .borrowing strength from the ensemble" \cite{Morris1983}.  Including such a model can also permit better inference about how animal density changes across the landscape. In many cases, inclusion of such a process model requires a shift to a model-based estimation perspective, whereby abundance or some proxy (density, abundance intensity) are estimated simultaneously with parameters of the detection function. Several authors recently modeled spatial dependence when analyzing distance sampling data \cite{HedleyBuckland2004,JohnsonEtAl2010} using point process likelihoods, but we know of no studies which simultaneously consider inclusion of spatial dependence, individual and covariate effects on detection probability, and the ability to incorporate data from multiple observers.
 
-Hierarchical models are a natural framework for simultaneously modeling abundance and detection probabilities, as observation models can be superimposed on an underlying model for abundance intensity.  Moore and Barlow \cite{MooreBarlow2011} and Chelgren et al. \cite{ChelgrenEtAl2011} recently used hierarchical models to account for strata and year effects on underlying densities when analyzing line transect data, but did not attempt to model data from multiple observers or use individual covariates in estimation. Similarly, Schmidt et al. \cite{SchmidtEtAl2012} borrowed ideas popularized in capture-recapture studies \cite{RoyleEtAl2007b,RoyleDorazio2008,Royle2009} to formulate a hierarchical model for distance data that was based on data augmentation.  Previously suggested by several authors for use with distance data \cite{RoyleDorazio2008,LinkBarker2010}, data augmentation has the advantage that individual covariates (such as distance and group size) can be modeled for unobserved groups of animals provided that a parametric distribution is specified for missing covariates (possibly with parameters to be estimated).
-However, their framework incorporates habitat and covariate effects at the level of individual inclusion probabilities (a Bernoulli model was assumed for inclusion of latent groups of animals), which makes it difficult to generalize.  For instance, accommodating transects and grid cells of unequal length is problematic. We argue that incorporating habitat and covariate effects on Poisson (or quasi-Poisson) abundance intensities is a better choice because the Poisson intensity scales linearly with area, making it easy to cope with transects and spatial grid cells that are of different length.
+Hierarchical models are a natural framework for simultaneously modeling abundance and detection probabilities, as observation models can be superimposed on an underlying model for abundance intensity.  Moore and Barlow \cite{MooreBarlow2011} and Chelgren et al. \cite{ChelgrenEtAl2011} recently used hierarchical models to account for strata and year effects on underlying densities when analyzing line transect data, but did not attempt to model data from multiple observers or use individual covariates in estimation. Similarly, Schmidt et al. \cite{SchmidtEtAl2012} borrowed ideas popularized in capture-recapture studies \cite{RoyleEtAl2007b,RoyleDorazio2008,Royle2009} to formulate a hierarchical model for distance data that was based on data augmentation.  Previously suggested by several authors for use with distance data \cite{RoyleDorazio2008,LinkBarker2010,RoyleDorazio2010}, data augmentation has the advantage that individual covariates (such as distance and group size) can be modeled for unobserved groups of animals provided that a parametric distribution is specified for missing covariates (possibly with parameters to be estimated).
+However, their framework incorporates habitat and covariate effects at the level of individual inclusion probabilities (a Bernoulli model iss assumed for inclusion of latent groups of animals), which makes it difficult to generalize.  For instance, accommodating transects and grid cells of unequal length is problematic. We argue that incorporating habitat and covariate effects on Poisson (or quasi-Poisson) abundance intensities is a better choice because the Poisson intensity scales linearly with area, making it easy to cope with transects and spatial grid cells that are of different length.
 
-In this paper, we develop hierarchical models for distance sampling data that permit habitat covariates and spatial dependency to influence abundance intensity, while simultaneously modeling effects of covariates on detection probability and permitting multiple observer effects (including ability to have $<$100\% detection on the transect line and to accommodate dependence among observer detections).  At the landscape scale, we employ a spatially restricted version \cite{ReichEtAl2006,HughesHaran2012} of an intrinsic conditionally autoregressive (ICAR) spatial model \cite{BesagEtAl1991,BesagKooperberg1995,RueHeld2005} to account for habitat covariates and spatial dependency.  Building upon previous work by Durban and Elston \cite{DurbanElston2005} in the context of mark-recapture modeling, our approach for modeling detections and abundance at the transect level is based on data augmentation \cite{TannerWong1987,RoyleEtAl2007b}, using a reversible jump Markov chain Monte Carlo (RJMCMC) algorithm \cite{CarlinChib1995,Green1995} to sample abundance and individual covariates. We provide flexible, user friendly R software for model fitting.
+In this paper, we develop hierarchical models for distance sampling data that permit habitat covariates and spatial dependency to influence abundance intensity, while simultaneously modeling effects of covariates on detection probability and permitting multiple observer effects (including ability to have $<$100\% detection on the transect line and to accommodate dependence among observer detections).  At the landscape scale, we employ a spatially restricted version \cite{ReichEtAl2006,HughesHaran2012} of an intrinsic conditionally autoregressive (ICAR) spatial model \cite{BesagEtAl1991,BesagKooperberg1995,RueHeld2005} to account for habitat covariates and spatial dependency.  Building upon previous work by Durban and Elston \cite{DurbanElston2005} in the context of mark-recapture modeling, our approach for modeling detections and abundance at the transect level is based on data augmentation \cite{TannerWong1987,RoyleEtAl2007b}, using a reversible jump Markov chain Monte Carlo (RJMCMC) algorithm \cite{CarlinChib1995,Green1995} to sample abundance and individual covariates. We provide flexible, user friendly R software \cite{RTeam2007} for model fitting.
 
-Our modeling approach is applicable to a variety of taxa, but we are particularly motivated by the need to produce density estimates for ice-associated seals in the Bering Sea.  After describing our proposed model and illustrating it's properties with a simulated dataset, we thus turn our attention to estimating abundance and density of ice seals (bearded, ringed, ribbon, and spotted seals) from helicopter transects conducted in the Bering Sea in 2008.  In addition to group size, we use species as an additional individual covariate on detection probabilities.
+Our modeling approach is applicable to a variety of taxa; here, we are particularly motivated by the need to produce density estimates for ice-associated seals in the Bering Sea.  After describing our proposed model and illustrating its properties with a simulated dataset, we thus turn our attention to estimating abundance and density of ice seals (bearded, ringed, ribbon, and spotted seals) from helicopter transects conducted in the Bering Sea in 2008.  In addition to group size, we use species as an additional individual covariate on detection probabilities.
 
 % Results and Discussion can be combined.
 
 \section*{Methods}
+
+This section is structured as follows. First, we introduce a hierarchical modeling framework for distance data.  This framework includes several components which we describe in turn, including (i) a process model describing how abundance intensity varies across discretized space (``Spatial model"), (ii) a model describing how the abundance along individual transects is related to abundance in larger grid cells (``Local abundance model"), models for individual covariates (``Covariate model"), (iv) a model describing how observed data are related to underlying abundances and covariates (``Observation model"), (v) details on how posterior summaries of abundance are calculated (``Posterior predictions of abundance"), and (vi) information on prior distributions (``Prior distributions").  Next, we describe details on how Bayesian analysis was conducted (``Data augmentation and inference").
 
 \subsection*{Hierarchical model}
 
@@ -142,8 +144,8 @@ and treat them separately.  Letting the notation $[X]$ define the probability di
 $$
 \begin{array}{lll}
 [ {\rm Parameters} | {\rm Data}] & \propto & [{\rm Data | Local \hspace{1mm} abundance, Covariates, Detection \hspace{1mm} parameters}]\\
-& \times & [{\rm Local \hspace{1mm} abundance | Spatial \hspace{1mm} process}]\\
 & \times & [{\rm Covariates|Local \hspace{1mm} abundance, Covariate \hspace{1mm} parameters}]\\
+& \times & [{\rm Local \hspace{1mm} abundance | Spatial \hspace{1mm} process}]\\
 & \times & [{\rm Spatial \hspace{1mm} process | Spatial\hspace{1mm}  parameters}]\\
 & \times & [{\rm Prior \hspace{1mm} distributions}]
 \end{array}.
@@ -154,7 +156,7 @@ We treat each of these components separately, below.  Notation is largely define
 
 \subsubsection*{Spatial model}
 
-Previous attempts at incorporating spatial dependence in estimation from line transect data have utilized both (thinned) point process models \cite{HedleyBuckland2004,JohnsonEtAl2010}, and areal spatial models \cite{SchmidtEtAl2012}.  Greater computational efficiency is afforded by choosing an areal spatial model, whereby space is discretized and abundance intensity is treated as constant within each spatial unit.  By it's very nature, this approach leads to a courser spatial surface than point process models, but the degree of courseness can be chosen by the user (e.g., by specifying a particular grid granulation).  Given that ecological datasets are typically sparse, we do not expect to lose much precision in inferences about density-habitat relationships from this choice.
+Previous attempts at incorporating spatial dependence in estimation from line transect data have utilized both (thinned) point process models \cite{HedleyBuckland2004,JohnsonEtAl2010}, and areal spatial models \cite{SchmidtEtAl2012}.  Greater computational efficiency is afforded by choosing an areal spatial model, whereby space is discretized and abundance intensity is treated as constant within each spatial unit.  By its very nature, this approach leads to a coarser spatial surface than point process models, but the degree of coarseness can be chosen by the user (e.g., by specifying a particular grid granulation).  Given that ecological datasets are typically sparse, we do not expect to lose much precision in inference about density-habitat relationships from this choice.
 
 Letting $\nu_s$ give the log of abundance intensity at site $s \in {1,2,\hdots,S}$, we impose the following model:
 $$
@@ -167,15 +169,15 @@ The resultant Poisson intensity is then $\lambda_s=A_s \exp(\nu_s)$, where $A_s$
 For versatility and ease of implementation, we chose to impose structure on the spatial random effects by means of a \emph{intrinsic conditionally autoregressive} (ICAR) areal spatial model, which is a type of \emph{Gaussian Markov Random Field} \cite{BesagEtAl1991,BesagKooperberg1995,RueHeld2005}.   Specification of an ICAR model starts with articulation of a spatial connectivity matrix, ${\bf C}$.  Let the landscape be discretized into $S$ distinct spatial units (e.g., grid cells).  Then ${\bf C}$ is a $(S \times S)$ dimensional matrix, with $C_{ij}=1$ if spatial unit $i$ is a neighbor of unit $j$, and zero otherwise.  Letting $n_i=\sum_j C_{ij}$ denote the number of neighbors cell $i$ possesses,
 we write elements of the precision matrix of the ICAR process ($\bQ$) as
 $$
-Q_{ij} = \tau_{\rm hab}\left\{\begin{array}{ll}
-				-C_{ij} & \mbox{if $i\ne j$}\\
-				n_i & \mbox{if $i=j$,}
+Q_{ij} = \left\{\begin{array}{ll}
+				-\tau_{\eta} C_{ij} & \mbox{if $i\ne j$}\\
+				\tau_{\eta} n_i & \mbox{if $i=j$,}
 				\end{array}\right.
 $$
-where $\tau_{\rm hab}$ is a spatial precision parameter to be estimated.
+where $\tau_{\eta}$ is a spatial precision parameter to be estimated.
 Given this formulation, the joint probability density function of spatial random effects, $\bn$, is multivariate normal:
 $$
-[\bn|\tau_{\rm hab}] = {\rm MVN}(\mathbf{0},\bQ^{-1}).
+[\bn|\tau_{\eta}] = {\rm MVN}(\mathbf{0},\bQ^{-1}).
 $$
 In practice, it is often found that this formulation permits too much flexibility.  In particular, (1) the spatial random effects can be confounded with fixed effect parameters \cite{ReichEtAl2006,HodgesReich2010}, and (2) the spectral decomposition
 of $\bQ^{-1}$ permits both positive and negative covariation among spatial grid cells at both fine- and course-scales \cite{HughesHaran2012}.  Our experience is that both of these issues can lead to spuriously high predictions of abundance in grid cells where sampling was never conducted.  Temporarily replacing ${\bf X}^{\rm hab}$ with ${\bf X}$, we reformulate the spatial ICAR model as suggested by Hughes and Haran \cite{HughesHaran2012} and Johnson et al. \cite{JohnsonEtAl2012}, using the following steps:
@@ -183,7 +185,7 @@ of $\bQ^{-1}$ permits both positive and negative covariation among spatial grid 
  \item Calculate the residual projection matrix, ${\bf P}^\bot = {\bf I}-{\bf X}({\bf X}^\prime{\bf X})^{-1}{\bf X}^\prime$.
  \item Determine the Moran operator matrix, $\boldsymbol{\Omega}=S {\bf P}^\bot {\bf C}{\bf P}^\bot / {\rm sum}({\bf C})$.
  \item Determine the eigenvalues, $\boldsymbol{\lambda}$, and eigenvectors, ${\bf V}$, of $\boldsymbol{\Omega}$.
- \item Use a criterion on $\boldsymbol{\lambda}$ to limit the number of ``effective" spatial random effects.  For instance, limiting ${\bf V}$ to those for which accompanying eigenvalues are greater than 0.5 often provides a reasonable level of smoothing \cite{HughesHaran2012}.
+ \item Use a criterion on $\boldsymbol{\lambda}$ to limit the number of ``effective" spatial random effects.  For instance, limiting ${\bf V}$ to those for which accompanying eigenvalues are greater than 0.5 often provides a reasonable level of course-scale smoothing \cite{HughesHaran2012}.
  \item Reassemble the selected eigenvectors from ${\bf V}$ into a new, reduced dimensional matrix ${\bf K}$.
  \item Calculate $\boldsymbol{\eta}={\bf K}\boldsymbol{\theta}$, where $[\boldsymbol{\theta}|\tau_{\eta}]= {\rm MVN}({\bf 0},{\bf K}^\prime \bQ {\bf K})$.
 \end{enumerate}
@@ -191,19 +193,17 @@ of $\bQ^{-1}$ permits both positive and negative covariation among spatial grid 
 \subsubsection*{Local abundance model}
 Conditional on $\boldsymbol{\lambda}$ from the spatial abundance process model, we decompose abundance in a given grid cell $s$ into that included in the surveyed area of $s$, and that occurring in the unsurveyed area of $s$.  Let $G_{st}$ represent the number of groups of animals located in $s$ within the area surveyed by transect $t$, and $G_s^*$ be the number of groups located in $s$ outside of the surveyed area.  Then
 $$
-  G_{st} \sim {\rm Poisson}(P_{st} \lambda_s), \hspace{1mm} {\rm and}
+  G_{st} \sim {\rm Poisson}(B_{st} \lambda_s), \hspace{1mm} {\rm and}
 $$
 $$
-  G_s^* \sim {\rm Poisson}((1-\sum_t P_{st}) \lambda_s).
+  G_s^* \sim {\rm Poisson}((1-\sum_t B_{st}) \lambda_s),
 $$
+where $B_{st}$ is the proportion of strata $s$ covered by transect $t$ (Table \ref{tab:defs}).
 
 \subsubsection*{Covariate model}
 
-We model individual covariates as having arisen from a parametric distribution, possibly with overdispersion.  In general, let the covariate
-\begin{equation} \label{eq:cov.dist}
-x_{ijk} \sim f(g(\theta,\epsilon_{ijk})),
-\end{equation}
-where $f()$ specifies a probability density or mass function, $g()$ specifies an arbitrary function, $\theta$ gives hyper-priors for $f()$, and $\epsilon_{ijk}$ specify random effects.  We have implemented a number of such functions in our accompanying R package, \emph{dspat}.  For instance, the user can choose $f()$ to be a uniform, multinomial, Poisson, zero-truncated Poisson, overdispersed Poisson, or overdispersed zero-truncated Poisson distribution.  The overdispersed versions of the Poisson distribution are modeled as in \cite{McClintockEtAl2009}; namely
+We model individual covariates as having arisen from a parametric distribution, possibly with overdispersion.  In general, let the covariate $x_{ijk}$ have the distribution $[g(\theta,\epsilon_{ijk})]$,
+where $g()$ specifies an arbitrary function, $\theta$ gives hyper-priors, and $\epsilon_{ijk}$ specifies a random effect.  We have implemented a number of such distributions in our accompanying R package, \emph{dspat}.  For instance, the user can choose $[g(\theta,\epsilon_{ijk})]$ to be a uniform, multinomial, Poisson, zero-truncated Poisson, overdispersed Poisson, or overdispersed zero-truncated Poisson distribution.  The overdispersed versions of the Poisson distribution are modeled as in \cite{McClintockEtAl2009}; namely
 $$
 x_{ijk} \sim {\rm Poisson}(\exp(\theta+\sigma \epsilon_{ijk})),
 $$
@@ -237,7 +237,7 @@ h(d_{ij})=\frac{(d_{ij}-1)}{\max(d_{ij}-1)},
 $$
 and with unbinned distance data,
 $$
-h(d_{ij})=\frac{(d_{ij})}{\max(d_{ij})}.
+h(d_{ij})=\frac{(d_{ij}}{\max(d_{ij})}.
 $$
 In both cases, $\rho_{ij}$ is assumed to be zero on the line (or in the first distance bin), capturing the essential features of point independence \cite{BorchersEtAl2006,BucklandEtAl2010}.  This formulation allows increased dependence of observations as a function of distance, a common phenomenon in distance sampling.
 
@@ -626,7 +626,7 @@ $X^{\rm det}_{ijk}$   & &  Design matrix associated with the detection model for
                 and observer $k$ (note dependence on
                 $w_{jk}$ and $x_{ijk}$) \\
 $A_s$   & & The proportional area of strata $s$ relative to mean strata area\\
-$P_{st}$   & & The proportion of area in strata $s$ that is surveyed by transect $t$\\
+$B_{st}$   & & The proportion of area in strata $s$ that is surveyed by transect $t$\\
 ${\bf C}$ & & Binary spatial connectivity matrix, with $C_{ij}=1$ if cells $i$ and $j$ are neighbors, and 0 otherwise\\
 $n_s$   & & Number of neighbors cell $s$ has\\
 \hline

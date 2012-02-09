@@ -111,6 +111,48 @@ generate_inits<-function(DM.hab,DM.det,G.transect,Area.trans,Area.hab,Mapping,po
 	Par
 }
 
+#' generate initial values for misID model if not already specified by user
+#' @param DM.hab 	a list of design matrices for the habitat model (elements are named sp1,sp2, etc.)
+#' @param DM.det	design matrix for detection model
+#' @param N.hab.par  vector giving number of parameters in the habitat model for each species
+#' @param G.transect a matrix of the number of groups of animals in area covered by each transect; each row gives a separate species		
+#' @param Area.trans	a vector giving the proportion of a strata covered by each transect
+#' @param Area.hab	a vector of the relative areas of each strata
+#' @param Mapping	a vector mapping each transect to it's associated strata
+#' @param point.ind	is point independence assumed (TRUE/FALSE)
+#' @param spat.ind  is spatial independence assumed? (TRUE/FALSE)
+#' @param grp.mean  a vector giving the pois1 parameter for group size (one entry for each species)
+#' @param misID.mat a matrix specifying which elements of the misID matrix are linked to model equations
+#' @param N.par.misID a vector giving the number of parameters for each misID model (in multinomial logit space)
+#' @return a list of initial parameter values
+#' @export
+#' @keywords initial values, mcmc
+#' @author Paul B. Conn
+generate_inits_misID<-function(DM.hab,DM.det,N.hab.par,G.transect,Area.trans,Area.hab,Mapping,point.ind,spat.ind,grp.mean,misID.mat,N.par.misID){		
+	n.species=nrow(G.transect)
+	n.cells=length(Area.hab)
+	n.misID.eq=max(misID.mat)
+	ncol.misID=max(N.par.misID)
+	hab=matrix(0,n.species,max(N.hab.par))
+	Nu=matrix(0,n.species,n.cells)
+	MisID=matrix(runif(n.misID.eq*ncol.misID,-.5,.5),n.misID.eq,ncol.misID)
+	diag.mods=diag(misID.mat)
+	diag.mods=diag.mods[which(diag.mods>0)]
+	if(length(diag.mods)>0)MisID[diag.mods,1]=MisID[diag.mods,1]+2 #ensure that the highest probability is for a non-misID
+	for(isp in 1:n.species){
+		Nu[isp,]=log(max(G.transect[isp,])/mean(Area.trans)*exp(rnorm(length(Area.hab),0,0.1)))
+	}
+	Par=list(det=rnorm(ncol(DM.det),0,1),hab=hab,cor=ifelse(point.ind,runif(1,0,.8),0),
+			Nu=Nu,Eta=matrix(rnorm(n.species*n.cells),n.species,n.cells),
+			tau.eta=runif(n.species,0.5,2),tau.nu=runif(n.species,0.5,2),MisID=MisID)
+	Par$hab[,1]=log(apply(G.transect,1,'mean')/(mean(Area.trans)*mean(Area.hab))*exp(rnorm(n.species,0,1)))
+	Par$G=exp(Par$Nu)*Area.hab*exp(rnorm(length(Par$Nu)))
+	for(isp in 1:n.species)Par$N[isp,]=Par$G[isp,]+rpois(n.cells,grp.mean[isp]*Par$G[isp,])
+	if(spat.ind==1)Par$Eta=0*Par$Eta
+	Par
+}
+
+
 #' compute the first derivative of log_lambda likelihood component for Langevin-Hastings
 #' @param Mu	expected value for all cells
 #' @param Nu	current observed valus (all cells)

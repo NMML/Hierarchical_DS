@@ -199,15 +199,17 @@ mcmc_ds<-function(Par,Data,cur.iter,adapt,Control,DM.hab,DM.det,Q,Prior.pars,Met
 		Lambda.trans=Lambda[Meta$Mapping]*Meta$Area.trans
 		
 		#update Betas for habitat relationships
+        Mu.old=Mu
 		for(ipar in 1:length(Par$hab)){
 			Prop=Par$hab
 			Prop[ipar]=Par$hab[ipar]+Control$MH.beta[ipar]*rnorm(1,0,1)
-			old.post=sum(dnorm(Par$Nu,Mu,sqrt(1/Par$tau.nu),log=1))+sum(dnorm(Par$hab,0,Prior.pars$beta.sd,log=1))
+			old.post=sum(dnorm(Par$Nu,Mu.old,sqrt(1/Par$tau.nu),log=1))+sum(dnorm(Par$hab,0,Prior.pars$beta.sd,log=1))
 			Mu=DM.hab%*%Prop+Par$Eta			
 			new.post=sum(dnorm(Par$Nu,Mu,sqrt(1/Par$tau.nu),log=1))+sum(dnorm(Prop,0,Prior.pars$beta.sd,log=1))
 			if(runif(1)<exp(new.post-old.post)){
 				Par$hab[ipar]=Prop[ipar]
 				Accept$Hab[ipar]=Accept$Hab[ipar]+1
+				Mu.old=Mu
 			}
 		}
 		
@@ -415,7 +417,7 @@ mcmc_ds<-function(Par,Data,cur.iter,adapt,Control,DM.hab,DM.det,Q,Prior.pars,Met
 		}
 		if(n.gt0>1){
 			for(itrans in 2:n.gt0){
-				Cur.dat=Data[itrans,1:n.Records[GT0[itrans]],]
+				Cur.dat=Data[GT0[itrans],1:n.Records[GT0[itrans]],]
 				if(is.vector(Cur.dat))Cur.dat=matrix(Cur.dat,1,length(Cur.dat))
 				Dist=matrix(Cur.dat[,Meta$dist.pl],Meta$G.transect[GT0[itrans]],Meta$n.Observers[GT0[itrans]],byrow=TRUE)[,1]
 				X.temp=array(t(get_mod_matrix(Cur.dat=Cur.dat,Meta$stacked.names,Meta$factor.ind,Meta$Det.formula,Meta$Levels)),dim=c(n.beta.det,Meta$n.Observers[GT0[itrans]],Meta$G.transect[GT0[itrans]]))

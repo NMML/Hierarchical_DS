@@ -5,7 +5,7 @@
 #' @author Paul B. Conn
 run_spatial_sim=function(){
 	S=225 #this needs to be a square number (square grid assumed)
-	n.real.transects=sqrt(S)*2
+	n.real.transects=sqrt(S)
 	n.transects=n.real.transects*2 #each transect spans two cells
 	Observers=matrix(NA,2,n.transects)
 	Obs.cov=array(0,dim=c(2,n.transects,1))
@@ -20,8 +20,8 @@ run_spatial_sim=function(){
 	}
 	Levels=list(Observer=c("1","2","3"),Seat=c("0","1"),Distance=c("1","2","3","4","5"),Species=c("1","2","3"))
 	Adj=square_adj(sqrt(S))
-	Out1=simulate_data_spatial_clustered(S=S,Observers=Observers,Adj=Adj) 
-	#Out1=simulate_data_spatial(S=S,Observers=Observers,Adj=Adj,tau=1000) 
+	#Out1=simulate_data_spatial_clustered(S=S,Observers=Observers,Adj=Adj) 
+	Out1=simulate_data_spatial(S=S,Observers=Observers,Adj=Adj,tau=15) 
 	Dat=Out1$Dat
 	Mapping=Out1$Mapping
 	Area.trans=Out1$Area.trans
@@ -31,8 +31,8 @@ run_spatial_sim=function(){
 	Bin.length=rep(1,n.bins)
 	Hab.cov=data.frame(matrix(rep(log(c(1:sqrt(S))/sqrt(S)),sqrt(S)),S,1)) #covariate on abundance intensity
 	colnames(Hab.cov)="Cov1"
-	#Hab.formula=~Cov1
-	Hab.formula=~1
+	Hab.formula=~Cov1
+	#Hab.formula=~1
 	#Det.formula=~Observer+Seat+Distance+Group
 	Det.formula=~Observer+Distance+Group+Species
 	#Det.formula=~Distance+Group+Species
@@ -53,7 +53,7 @@ run_spatial_sim=function(){
 	pol.eff=2 #not currently used since using distance bins
 	point.ind=TRUE
 	spat.ind=FALSE #dont' include spatial dependence unless there really is spatial structure!
-	fix.tau.nu=TRUE
+	fix.tau.nu=FALSE
 	srr=TRUE
 	srr.tol=0.2
 	grps=TRUE
@@ -61,10 +61,10 @@ run_spatial_sim=function(){
 	M[which(M<10)]=15
 	#M=c(11:20)
 	#M=c(21:50)
-	Control=list(iter=25100,burnin=100,thin=10,MH.cor=0.2,MH.nu=.01,MH.beta=c(.2),RJ.N=rep(5,S),adapt=1000)
+	Control=list(iter=100100,burnin=100,thin=10,MH.cor=0.2,MH.nu=.01,MH.beta=c(.2,.4),RJ.N=rep(5,S),adapt=1000)
 	#Control=list(iter=2010,burnin=10,thin=10,MH.cor=0.2,MH.nu=.01,MH.beta=c(.2,.4),RJ.N=rep(5,S),adapt=100)
 	Inits=list(hab=c(log(70)),tau.nu=100) #chain1
-	Inits=list(hab=c(log(100)),tau.nu=100) #chain2
+	Inits=list(hab=c(log(100),1),tau.nu=100) #chain2
 	Prior.pars=list(a.eta=1,b.eta=.01,a.nu=1,b.nu=.01,beta.sd=c(10000,100)) #(1,.01) prior makes it closer to a uniform distribution near the origin
 	adapt=TRUE
 	
@@ -74,10 +74,10 @@ run_spatial_sim=function(){
 	plot_obs_pred(Out)
 	summary_N(Out)
 	
-	save(Out,file="OutCluster2b.Rdata")
+	#save(Out,file="OutCluster2b.Rdata")
 	
 	#plot estimated abundance
-	N.mean=apply(Out$MCMC$N,2,'mean')
+	N.mean=apply(Out$MCMC$N[5000:10000,],2,'mean')
 	Abund.df=data.frame(cbind(rep(c(sqrt(S):1),sqrt(S)),rep(c(1:sqrt(S)),each=sqrt(S)),round(as.vector(N.mean))))
 	colnames(Abund.df)=c("y","x","Abundance")
 	require(ggplot2)
