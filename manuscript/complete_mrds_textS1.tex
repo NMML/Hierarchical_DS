@@ -1,0 +1,248 @@
+% Template for PLoS
+% Version 1.0 January 2009
+%
+% To compile to pdf, run:
+% latex plos.template
+% bibtex plos.template
+% latex plos.template
+% latex plos.template
+% dvipdf plos.template
+
+\documentclass[10pt]{article}
+
+% amsmath package, useful for mathematical formulas
+\usepackage{amsmath}
+% amssymb package, useful for mathematical symbols
+\usepackage{amssymb}
+
+% graphicx package, useful for including eps and pdf graphics
+% include graphics with the command \includegraphics
+\usepackage{graphicx}
+
+% cite package, to clean up citations in the main text. Do not remove.
+\usepackage{cite}
+
+\usepackage{color}
+
+% Use doublespacing - comment out for single spacing
+\usepackage{setspace}
+\doublespacing
+
+
+% Text layout
+\topmargin 0.0cm
+\oddsidemargin 0.5cm
+\evensidemargin 0.5cm
+\textwidth 16cm
+\textheight 21cm
+
+% Bold the 'Figure #' in the caption and separate it with a period
+% Captions will be left justified
+\usepackage[labelfont=bf,labelsep=period,justification=raggedright]{caption}
+
+% Use the PLoS provided bibtex style
+\bibliographystyle{plos2009}
+
+% Remove brackets from numbering in List of References
+\makeatletter
+\renewcommand{\@biblabel}[1]{\quad#1.}
+\makeatother
+
+
+% Leave date blank
+\date{}
+
+\pagestyle{myheadings}
+%% ** EDIT HERE **
+
+
+%% ** EDIT HERE **
+%% PLEASE INCLUDE ALL MACROS BELOW
+\newcommand{\yst}{\ensuremath{y_{st}}}
+\newcommand{\tyst}{\ensuremath{\tilde y_{st}}}
+\newcommand{\tzs}{\ensuremath{\tilde z_{s}}}
+\newcommand{\tzst}{\ensuremath{\tilde z_{st}}}
+\newcommand{\zst}{\ensuremath{z_{st}}}
+\newcommand{\zs}{\ensuremath{z_{s}}}
+\newcommand{\bg}{\ensuremath{\boldsymbol{\gamma}}}
+\newcommand{\bxst}{\ensuremath{\mathbf{x}_{st}}}
+\newcommand{\bK}{\ensuremath{\mathbf{K}}}
+\newcommand{\bn}{\ensuremath{\boldsymbol{\eta}}}
+\newcommand{\bb}{\ensuremath{\boldsymbol{\beta}}}
+\newcommand{\by}{\ensuremath{\mathbf{y}}}
+\newcommand{\bz}{\ensuremath{\mathbf{z}}}
+\newcommand{\bX}{\ensuremath{\mathbf{X}}}
+\newcommand{\be}{\ensuremath{\boldsymbol{\epsilon}}}
+\newcommand{\bQ}{\ensuremath{\mathbf{Q}}}
+
+
+
+
+%% END MACROS SECTION
+
+\begin{document}
+
+% Title must be 150 characters or less
+\begin{flushleft}
+{\Large
+\textbf{Text S1: Posterior sampling algorithm for multiple observer transect analysis} }
+% Insert Author names, affiliations and corresponding author email.
+\\
+Paul B. Conn $^{1,\ast}$,
+Jeffrey L. Laake $^{1}$,
+Devin S. Johnson$^{1}$,
+\\
+{\bf{1}} NOAA National Marine Mammal Laboratory, Alaska Fisheries Science Center,
+7600 Sand Point Way NE, Seattle, WA, 98115 U.S.A.
+\\
+$\ast$ E-mail: paul.conn@noaa.gov
+\end{flushleft}
+
+
+Here, we describe full conditional distributions and Markov chain Monte Carlo updating strategies for parameters of the hierarchical model for multiple-observer transect data.
+
+
+\subsection*{Sampling $\boldsymbol{\beta}^{\rm hab}$}
+
+The full conditional distribution for $[\boldsymbol{\beta}^{\rm hab}|\hdots]$ (the conditional distribution of $\boldsymbol{\beta}^{\rm hab}$ given all other parameters is given by
+$$
+    [\boldsymbol{\nu} | \boldsymbol{\beta}^{\rm hab},{\bf X}^{\rm hab},\boldsymbol{\eta},\tau_\nu][\boldsymbol{\beta}^{\rm hab}]\propto[\boldsymbol{\nu} | \boldsymbol{\beta}^{\rm hab},{\bf X}^{hab},\boldsymbol{\eta},\tau_\nu],
+$$
+where $ [\boldsymbol{\nu} | \boldsymbol{\beta}^{\rm hab},{\bf X}^{\rm hab},\boldsymbol{\eta},\tau_\nu]$
+is the product normal likelihood
+\begin{equation} \label{eq:nu.lik}
+{\rm Normal}(\boldsymbol{\nu};{\bf X}^{\rm hab} \boldsymbol{\beta}^{\rm hab} +\boldsymbol{\eta},\tau_\nu^{-1}{\bf I}).
+\end{equation}
+Rewriting Eq. \ref{eq:nu.lik} as
+$$
+{\rm Normal}(\boldsymbol{\nu}-\boldsymbol{\eta};{\bf X}^{\rm hab}\boldsymbol{\beta}^{\rm hab} ,\tau_\nu^{-1}{\bf I})
+$$
+makes it into a standard linear regression formula. We may
+thus use Gibbs sampling to sample directly from $[\boldsymbol{\beta}^{\rm hab}|\hdots]$ (e.g. \cite{GelmanEtAl2004}, chapter 14), using
+\begin{equation}
+\label{eq:beta.post}
+[\boldsymbol{\beta}^{\rm hab}|\hdots]={\rm Normal}(({\bf X}^\prime {\bf X})^{-1}{\bf X}^\prime (\boldsymbol{\nu}-\boldsymbol{\eta}),\tau_\nu^{-1}({\bf X}^\prime {\bf X})^{-1})
+\end{equation}
+(temporarily replacing ${\bf X}^{\rm hab}$ with ${\bf X}$).
+
+\subsection*{Sampling $\boldsymbol{\eta}$}
+
+We employ a similar strategy to sample from  $[\boldsymbol{\eta}|\hdots]$.  In this case, we
+rewrite Eq. \ref{eq:nu.lik} as
+$$
+{\rm Normal}(\boldsymbol{\nu}-{\bf X}^{\rm hab}\boldsymbol{\beta}^{\rm hab};\boldsymbol{\eta} ,\tau_\nu^{-1}{\bf I}).
+$$
+Here, the ``data" are $(\boldsymbol{\nu}-{\bf X}^{\rm hab}\boldsymbol{\beta}^{\rm hab})$, while the regression parameters are $\boldsymbol{\eta}$ with an identity design matrix. In application without spatial restriction of random effects, the prior precision of $\boldsymbol{\eta}$ is ${\bf Q}^{-1}$, so that
+$$
+[\boldsymbol{\eta}|\hdots] = {\rm Normal}(\Sigma_\eta \tau_\nu (\boldsymbol{\nu}-{\bf X}^{\rm hab}\boldsymbol{\beta}^{\rm hab}),\Sigma_\eta),
+$$
+where
+$$
+\Sigma_\eta=(\tau_\nu{\bf I} + {\bf Q})^{-1}.
+$$
+This distribution may be sampled directly via Gibbs sampling. Owing to the sparse nature of $\bQ$, we increased computational efficiency by utilizing numerical routines specifically formulated for sparse matrices (see Dataset S1).
+
+In applications with spatial restriction, $\boldsymbol{\eta} = {\bf K}\boldsymbol{\theta}$, so we instead need to sample $\boldsymbol{\theta}$.  In this case, we redefine the precision matrix of the ICAR process as ($\bQ_\theta={\bf K}^\prime \bQ {\bf K}$), and write the full conditional distribution for $\boldsymbol{\theta}$ as
+$$
+[\boldsymbol{\theta}|\hdots] = {\rm Normal}(\Sigma_\theta \tau_\nu {\bf K}^\prime (\boldsymbol{\nu}-{\bf X}^{\rm hab}\boldsymbol{\beta}^{\rm hab}),\Sigma_\theta),
+$$
+where $\Sigma_\theta=(\tau_\nu {\bf K}^\prime {\bf K} + {\bf Q_\theta})^{-1}$ \cite{HughesHaran2012,JohnsonEtAl2012}.
+
+
+
+\subsection*{Sampling $\tau_\eta$}
+Given a $\textrm{Gamma}(\alpha_\eta,\beta_\eta)$ prior, $\tau_\eta$ may be directly sampled using
+$$
+\tau_\eta \sim \textrm{Gamma}\left( 0.5(S-1)+\alpha_\eta,0.5\boldsymbol{\eta}^\prime {\bf Q} \boldsymbol{\eta}+\beta_\eta \right).
+$$
+When spatial restriction is employed,
+$$
+\tau_\eta \sim \textrm{Gamma}\left( 0.5(n-1)+\alpha_\eta,0.5\boldsymbol{\theta}^\prime \bQ_\theta \boldsymbol{\theta} +\beta_\eta \right),
+$$
+where $n$ gives the length of $\boldsymbol{\theta}$.
+
+\subsection*{Sampling $\boldsymbol{\nu}$}
+We used different strategies for updating $\nu_s$ depending on whether or not sampling was conducted in strata $s$. To update $\nu_s$ for cells where sampling was not conducted, we simulated $\nu_s$ directly using
+$$
+\nu_s \sim {\rm Normal}([{\bf X}^{\rm hab} \boldsymbol{\beta}^{\rm hab}]_s+\eta_s,\tau_\nu^{-1}).
+$$
+We simultaneously updated the remaining elements of $\boldsymbol{\nu}$ using
+a Langevin-Hastings algorithm \cite{RobertCasella2004}.  The Langevin-Hastings algorithm utilizes the numerical gradient of the full conditional distribution to make more efficient proposals, which are accepted or rejected based on a modified Metropolis ratio.  The full conditional distribution for $\boldsymbol{\nu}$ needed to perform Langevin-Hastings updates is given by
+$$
+\left[ \boldsymbol{\nu} | \hdots \right] = \textrm{Normal}\left(\boldsymbol{\nu};{\bf X}^{\rm hab}\boldsymbol{\beta}^{\rm hab}+\boldsymbol{\eta},\tau_\nu^{-1} {\bf I} \right) \prod_i \textrm{Poisson} \left( G_i; \exp(\nu_i) \right),
+$$
+where {\bf I} is an identity matrix.
+
+\subsection*{Sampling $\tau_\nu$}
+As with $\tau_\eta$, $\tau_\nu$ may be directly sampled using
+$$
+\tau_\nu \sim \textrm{Gamma}\left( 0.5S+\alpha_\nu,0.5\boldsymbol{\mu}_\nu^\prime \boldsymbol{\mu}_\nu+\beta_\nu \right),
+$$
+where $\boldsymbol{\mu}_\nu={\bf X}^{\rm hab}\boldsymbol{\beta}^{\rm hab}+\boldsymbol{\eta}$.
+
+\subsection*{Sampling $\boldsymbol{\beta}^{\rm det}$}
+
+Using Eq. 2 to transform bivariate responses into univariate responses when necessary, i.e.,
+$$
+\acute{Y}_{ijk}=
+    \left\{ \begin{array}{lll}
+				\tilde{Y}_{ijk} & & O_j=1\\
+			    \tilde{Y}_{ijk}-\rho_{ij}\tilde{Y}_{ij,3-k} & & O_j=2
+		\end{array}, \right.
+$$
+we can show that
+$$
+\acute{{\bf Y}} \sim {\rm Normal}({\bf X} \boldsymbol{\beta}^{\rm det},\boldsymbol{\Sigma}),
+$$
+where ${\bf X}={\bf X}^{\rm det}$ if $O_j=1$ and
+$$
+{\bf X}=\left[ \begin{array}{l}
+    {\bf X}_1^{\rm det} - \rho {\bf X}_2^{\rm det} \\
+    {\bf X}_2^{\rm det} - \rho {\bf X}_1^{\rm det}
+    \end{array}
+    \right]
+$$
+if $O_j=2$ (Here, ${\bf X}_k^{\rm det}$ designates the design matrix for the $k$th observer).
+Also, $\boldsymbol{\Sigma}$ is a diagonal matrix with entries corresponding to $1-\rho_{ij}^2$ for each response variable.  Under this formulation, we can use basic Gibbs sampling for regression with a known covariance matrix (e.g., \cite{GelmanEtAl2004}, Eqs. 14.11-14.12) to sample from $[\boldsymbol{\beta}^{\rm det}|\hdots]$.  In particular,
+$$
+[\boldsymbol{\beta}^{\rm det}|\hdots]=\textrm{Normal}\left( ({\bf X}^\prime \boldsymbol{\Sigma}^{-1} {\bf X})^{-1}{\bf X}^\prime \boldsymbol{\Sigma}^{-1} \acute{{\bf Y}},
+({\bf X}^\prime \boldsymbol{\Sigma}^{-1} {\bf X})^{-1} \right).
+$$
+
+
+
+\subsection*{Sampling $\rho$}
+
+Letting $\xi$ denote the set of transects for which $O_j=2$ (i.e., the set for which there were two observers present), we used a Metropolis-Hastings step to update $\rho$.  The full conditional distribution for this update is given by
+$$
+  [\rho|\hdots] \propto \left[ \prod_{j \in \xi} \prod_{i=1}^{G_{ij}}
+  \{
+(1-\rho_{ij}^2)\exp\left(
+(1-\rho_{ij}^2)^{-1} (\Delta_{ij1}^2+\Delta_{ij2}^2-2\rho_{ij}\Delta_{ij1}\Delta_{ij2})
+  \right)
+  \}
+  \right]^{-0.5},
+$$
+where $\Delta_{ijk}=\tilde{Y}_{ijk}-[{\bf X}^{\rm det} \boldsymbol{\beta}]_{ijk}$.
+
+\subsection*{Sampling $\tilde{\bf Y}$}
+
+For animals currently in the population (i.e., for $i \in [1,2,\hdots,G_j]$), the full conditional distribution $[ \tilde{Y}_{ijk} | \hdots]$ is a truncated normal, and may be sampled directly.  If $Y_{ijk}=0$, $\tilde{Y}_{ijk}$ is drawn from a normal distribution with the constraint that $\tilde{Y}_{ijk}<0$, while $\tilde{Y}_{ijk}>0$ if $Y_{ijk}=1$.  The corresponding untruncated distribution is given by
+$$
+\tilde{Y}_{ijk} \sim \textrm{Normal} \left( [{\bf X}^{\rm det} \boldsymbol{\beta}^{\rm det}]_{ijk},1  \right)
+$$
+when $O_j=1$, and
+$$
+\tilde{Y}_{ijk} \sim \textrm{Normal} \left( [{\bf X}^{\rm det} \boldsymbol{\beta}^{\rm det}]_{ijk}+\rho_{ij}(\tilde{Y}_{ij,3-k}-[{\bf X}^{\rm det} \boldsymbol{\beta}^{\rm det}]_{ij,3-k}),1-\rho_{ij}^2  \right)
+$$
+when $O_j=2$.
+
+\subsection*{Sampling $\boldsymbol{\theta}, \boldsymbol{\epsilon}$}
+
+If random effects are not specified (i.e., $\epsilon_{ijk}=0$ $\forall$ $\{i,j,k\}$), specification of conjugate priors for the Poisson, zero-truncated Poisson, and multinomial distributions meant that full conditionals were available in closed form and could be simulated directly.  If random effects are specified, both the parameters of the underlying distribution (i.e., $\boldsymbol{\theta}$) and the random effects themselves (i.e., $\boldsymbol{\epsilon}$)
+are sampled via the Metropolis-Hastings algorithm.  Owing to the relatively large number of individual covariate distributions, we refer the reader to Dataset S1 for further details.
+
+\bibliography{master_bib}
+\clearpage
+\end{document}
+

@@ -5,7 +5,7 @@ Title: Functions for performing hierarchical analysis of distance
     sampling data
 Type: Package
 LazyLoad: yes
-Author: P.B. Conn
+Author: P.B. Conn \email{paul.conn@@noaa.gov}
 Description: Functions for performing hierarchical analysis of distance
     sampling data, with ability to use an areal spatial ICAR model on
     top of user supplied covariates to get at variation in abundance
@@ -19,8 +19,20 @@ Description: Functions for performing hierarchical analysis of distance
     distance, with independence assumed for distance=0 (or first
     distance bin).
 Version: 1.0
-Depends: truncnorm (>= 1.0-4), MASS (>= 7.3), mvtnorm (>= 0.9),Matrix
-    (>= 0.999375-46),coda (>=0.14)
-Date: 2011-12-19
-Collate: 'hierarchical_DS.R' 'mcmc_ds.R' 'run_analysis.R'
-    'simulate_data.R' 'spat_funcs.R'
+Depends:
+    truncnorm,
+    MASS,
+    mvtnorm,
+    Matrix,
+    coda,
+    spsurvey,
+    MCMCpack,
+    ggplot2,
+    xtable,
+    mc2d
+Date: 2012-3-26
+Collate:
+    'hierarchical_DS.R'
+    'mcmc_ds.R'
+    'simulate_data.R'
+    'spat_funcs.R'
