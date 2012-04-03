@@ -84,6 +84,14 @@ mcmc_ds<-function(Par,Data,cur.iter,adapt,Control,DM.hab,DM.det,Q,Prior.pars,Met
 	#require(mvtnorm)
 	#require(Matrix)
 	#require(truncnorm)
+	require(compiler)
+	switch_sample<-cmpfun(switch_sample)
+	switch_sample_prior<-cmpfun(switch_sample_prior)
+	switch_pdf<-cmpfun(switch_pdf)
+	get_mod_matrix<-cmpfun(get_mod_matrix)
+	log_lambda_gradient<-cmpfun(log_lambda_gradient)
+	log_lambda_log_likelihood<-cmpfun(log_lambda_log_likelihood)
+
 	
 	Lam.index=c(1:Meta$S)
 	if(Meta$i.binned==0)dist.mult=1
@@ -193,7 +201,7 @@ mcmc_ds<-function(Par,Data,cur.iter,adapt,Control,DM.hab,DM.det,Q,Prior.pars,Met
 	#initialize random effect matrices for individual covariates if required
 	if(sum(1-Meta$Cov.prior.fixed)>0)RE.cov=array(0,dim=c(Meta$n.species,Meta$n.transects,max(Meta$M),Meta$n.ind.cov))
 		
-	PROFILE=FALSE
+	PROFILE=TRUE
 	st <- Sys.time()
 	##################################################
 	############   Begin MCMC Algorithm ##############

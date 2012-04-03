@@ -42,6 +42,7 @@
 
 % Use the PLoS provided bibtex style
 \bibliographystyle{plos2009}
+%\bibliographystyle{natbib}
 
 % Remove brackets from numbering in List of References
 \makeatletter
@@ -100,7 +101,7 @@ $\ast$ E-mail: paul.conn@noaa.gov
 
 % Please keep the abstract between 250 and 300 words
 \section*{Abstract}
-Ecologists often use multiple observer transect surveys to census animal populations.  In addition to animal counts, these surveys produce sequences of detections and non-detections for each observer.  When combined with additional data (i.e. covariates such as distance from the transect line), these sequences provide the additional information to estimate absolute abundance when detectability is less than one.  Although existing analysis approaches for such data proven extremely useful, they have some limitations.  For instance, it is difficult to extrapolate from observed areas to unobserved areas unless a rigorous sampling design is adhered to; it is also difficult to share information across spatial and temporal domains or to accommodate habitat-abundance relationships.  In this paper, we introduce a hierarchical modeling framework for multiple observer line transects that removes these limitations.  In particular, abundance intensities can be modeled as a function of habitat covariates, making it easier to extrapolate to unsampled areas.  Our approach relies on a complete data representation of state space, where unobserved animals and their covariates are modeled using a reversible jump Markov chain Monte Carlo formulation.  Observer detections are modeled via a bivariate normal distribution on the probit scale, with dependence induced by a distance-dependent correlation parameter.  We illustrate performance of our approach with simulated data and on a known population of golf tees.  In both cases, we show that our hierarchical modeling approach yields accurate inference about abundance and related parameters.  In addition, we obtain accurate inference about population-level covariates (e.g. group size), which are not estimable from traditional transect analyses.  We recommend that ecologists consider using hierarchical models when analyzing multiple-observer transect data, especially when it is difficult to rigorously follow pre-specified sampling designs.  We provide a new R package, {\tt HierarchicalDS}, to facilitate the building of these models. 
+Ecologists often use multiple observer transect surveys to census animal populations.  In addition to animal counts, these surveys produce sequences of detections and non-detections for each observer.  When combined with additional data (i.e. covariates such as distance from the transect line), these sequences provide the additional information to estimate absolute abundance when detectability is less than one.  Although existing analysis approaches for such data have proven extremely useful, they have some limitations.  For instance, it is difficult to extrapolate from observed areas to unobserved areas unless a rigorous sampling design is adhered to; it is also difficult to share information across spatial and temporal domains or to accommodate habitat-abundance relationships.  In this paper, we introduce a hierarchical modeling framework for multiple observer line transects that removes these limitations.  In particular, abundance intensities can be modeled as a function of habitat covariates, making it easier to extrapolate to unsampled areas.  Our approach relies on a complete data representation of state space, where unobserved animals and their covariates are modeled using a reversible jump Markov chain Monte Carlo algorithm.  Observer detections are modeled via a bivariate normal distribution on the probit scale, with dependence induced by a distance-dependent correlation parameter.  We illustrate performance of our approach with simulated data and on a known population of golf tees.  In both cases, we show that our hierarchical modeling approach yields accurate inference about abundance and related parameters.  In addition, we obtain accurate inference about population-level covariates (e.g. group size), which are not estimable from traditional transect analyses.  We recommend that ecologists consider using hierarchical models when analyzing multiple-observer transect data, especially when it is difficult to rigorously follow pre-specified sampling designs.  We provide a new R package, {\tt HierarchicalDS}, to facilitate the building and fitting of these models.
 
 % Please keep the Author Summary between 150 and 200 words
 % Use first person. PLoS ONE authors please skip this step.
@@ -109,15 +110,15 @@ Ecologists often use multiple observer transect surveys to census animal populat
 
 \section*{Introduction}
 
-Transect surveys are often used to census animal populations, and are a central component of many inventory and monitoring programs.  In such surveys, an observer travels along a set of lines or visits a finite collection of points, recording all animals they encounter within a fixed distance of the line (point).  If all animals within this strip are encountered, researchers can make inferences about abundance over a larger area by employing standard design-based sampling protocols \cite{Cochran1977}.  On the other hand, if some animals are missed (as is almost always the case), approaches are needed to correct for probabilities of detection ($p$) that are less than one.
+Transect surveys are often used to census animal populations and are a central component of many inventory and monitoring programs.  In such surveys, an observer travels along a set of lines or visits a finite collection of points, recording all animals they encounter within a fixed distance of the line (or point).  If all animals within this strip are encountered, researchers can make inferences about abundance over a larger area by employing standard design-based sampling protocols \cite{Cochran1977}.  On the other hand, if some animals are missed (as is almost always the case), approaches are needed to correct for probabilities of detection ($p$) that are less than one.
 
-Distance sampling is one potential avenue for correcting for incomplete detection of animals in fixed area polygons.  In its canonical form (e.g. \cite{BurnhamEtAl1980,BucklandEtAl2001}), distance sampling is a simple extension of quadrat sampling, whereby an observer notes the perpendicular distance of groups of animals from the centerline (or radial distance from a point).  Analysts then fit models to distance data that allow them to express the probability of detecting a group of animals ($p_d$) as a function of distance (assumed to be 1.0 at distance $d=0$), and estimate total abundance in the surveyed area by adjusting the actual number of groups counted ($C$) upward.  For example, with line transects one might construct an estimator of group abundance ($G$) in the covered area as
+Distance sampling is one potential avenue for correcting for incomplete detection of animals in fixed area polygons.  In its canonical form (e.g. \cite{BurnhamEtAl1980,BucklandEtAl2001}), distance sampling is a simple extension of quadrat sampling, whereby an observer notes the perpendicular distance of animals or groups of animals from the centerline (or radial distance from a point).  Analysts then fit models to distance data that allow them to express the probability of detecting a group of animals ($p_d$) as a function of distance (assumed to be 1.0 at distance $d=0$), and estimate total abundance in the surveyed area by adjusting the actual number of groups counted ($C$) upward.  For example, with line transects one might construct an estimator of group abundance ($G$) in the covered area as
 $$
 \hat{G} = \frac{C}{\int_0^D \hat{p}_d \hspace{1.5mm}dd},
 $$
 where $D$ is half the width of each transect.
 
-When animals are detectable from the air, from vessels at sea, or by other means (e.g. avian auditory counts), distance sampling provides a way to correct for imperfect detection in animal surveys without having to physically capture and mark animals.  Correcting for imperfect detection is necessary when estimating absolute abundance, and is also viewed by many as an essential component of trend estimation because trends in detectability are typically confounded with trends in abundance unless detectability is explicitly estimated \cite{Buckland2006,NicholsEtAl2009}.  For these reasons, practitioners routinely use distance sampling in contemporary animal transect surveys.
+When animals are detectable from the air, from vessels at sea, or by other means (e.g. avian auditory counts), distance sampling provides a way to correct for imperfect detection in animal surveys without having to physically capture and mark animals.  Correcting for imperfect detection is necessary when estimating absolute abundance, and is also viewed by many as an essential component of trend estimation because trends in detectability are typically confounded with trends in abundance unless detectability is explicitly accounted for \cite{Buckland2006,NicholsEtAl2009}.  For these reasons, practitioners routinely use distance sampling in contemporary animal transect surveys.
 
 Researchers have extended conventional distance sampling to account for a variety of complications that arise in real life sampling scenarios.  Several studies have utilized multiple observers to relax the assumption of 100\% detection on the transect line \cite{BorchersEtAl1998}, and to model heterogeneity in detection as a function of distance \cite{LaakeBorchers2004,BorchersEtAl2006,BucklandEtAl2010}.  These features are common in many datasets, and can cause negative bias in abundance estimates if unaccounted for.  Other authors have extended conventional distance sampling to model the effects of individual and external covariates on detection probabilities \cite{DrummerMcdonald1987,RamseyEtAl1987,MarquesBuckland2003}.  As with conventional approaches to distance sampling, estimators are often obtained via a two-stage approach, whereby analysts first formulate models for multiple-observer and distance data, and then estimate abundance using a Horvitz-Thompson-like estimator \cite{Huggins1989,Alho1990}.
 
@@ -126,7 +127,7 @@ For instance, Moore and Barlow \cite{MooreBarlow2011} and Chelgren et al. \cite{
 
 Thus far, attempts to analyze line transect data with hierarchical models have focused on single observer data.  In this paper, we develop hierarchical models for double observer data that permit habitat covariates to influence abundance intensity, while simultaneously modeling effects of covariates on detection probability.  Since double observers are employed, these models allow for $<$100\% detection on the transect line (by contrast, previously developed hierarchical modeling approaches had to assume 100\% detection on the line).  Our approach can also accommodate increasing dependence among observer detections as a function of distance.  Building upon previous work by Durban and Elston \cite{DurbanElston2005} in the context of mark-recapture modeling, our approach for modeling detections and abundance at the transect level is based on data augmentation \cite{TannerWong1987,RoyleEtAl2007b}, using a reversible jump Markov chain Monte Carlo (RJMCMC) algorithm \cite{CarlinChib1995,Green1995} to sample abundance and individual covariates.  Much of the modeling is accomplished in probit space, which greatly simplifies Bayesian computation \cite{AlbertChib1993}.
 
-Our modeling approach is applicable to sampling programs for a variety of taxa; here, we focus on describing a generalized hierarchical modeling framework, developing user friendly software, and demonstrating the viability of our approach.  After describing our proposed model, we use a small simulation study to verify that it provides reasonable inference about abundance for multiple species with different habitat preferences.  Finally, we analyze a data from a known population of golf tees that were sampled via a double observer distance sampling protocol.  Golf tee clusters varied by the number of tees in each cluster, by color, and by level of exposure, allowing us to fit models that expressed detection probability as a function of covariates and to estimate posterior distributions for these covariates. In contrast to most population surveys, truth is known for this dataset and provides a verifiable test of our modeling framework.
+Our modeling approach is applicable to sampling programs for a variety of taxa; here, we focus on describing a generalized hierarchical modeling framework, developing user friendly software, and demonstrating the viability of our approach.  After describing our proposed model, we use a small simulation study to verify that it provides reasonable inference about abundance for multiple species with different habitat preferences.  Finally, we analyze data from a known population of golf tees that were sampled via a double observer distance sampling protocol.  Golf tee clusters varied by the number of tees in each cluster, by color, and by level of exposure, allowing us to fit models that expressed detection probability as a function of covariates and to estimate posterior distributions for these covariates. In contrast to most population surveys, truth is known for this dataset and provides a verifiable test of our modeling framework.
 
 
 % Results and Discussion can be combined.
@@ -135,19 +136,19 @@ Our modeling approach is applicable to sampling programs for a variety of taxa; 
 
 \subsection*{Hierarchical model}
 
-We propose a hierarchical model for distance sampling data consisting of several conceptually distinct components: a process model, an individual covariate model, and an observation model (Figure \ref{fig:DAG_simple}).  Writing the model hierarchically, we can factor these components out
-and treat them separately.  Letting the notation $[X]$ define the probability distribution or mass function of $X$, $[X|Y]$ denote the conditional probability of $X$ given $Y$, we (symbolically) write the posterior density of the hierarchical model as follows:
+We propose a hierarchical model for distance sampling data consisting of several conceptually distinct components (Figure \ref{fig:DAG}).  Writing the model hierarchically, we can use conditioning to treat these components separately.  Letting the notation $[X]$ define the probability distribution or mass function of $X$, $[X|Y]$ denote the conditional probability of $X$ given $Y$, we (symbolically) write the likelihood of the hierarchical model as
 $$
 \begin{array}{lll}
-[ {\rm Parameters} | {\rm Data}] & \propto & [{\rm Data | Local \hspace{1mm} abundance, Covariates, Detection \hspace{1mm} parameters}]\\
+[ {\rm Data} | {\rm Parameters}] & \propto & [{\rm Data | Local \hspace{1mm} abundance, Covariates, Detection \hspace{1mm} parameters}]\\
 & \times & [{\rm Covariates|Local \hspace{1mm} abundance, Covariate \hspace{1mm} parameters}]\\
 & \times & [{\rm Local \hspace{1mm} abundance | Abundance \hspace{1mm} intensity }]\\
-& \times & [{\rm Abundance \hspace{1mm} intensity | Habitat  \hspace{1mm}  parameters}]\\
-& \times & [{\rm Prior \hspace{1mm} distributions}]
+& \times & [{\rm Abundance \hspace{1mm} intensity | Habitat  \hspace{1mm}  parameters}]
 \end{array}.
 $$
-In addition, one can make posterior predictions of total abundance, so we might include another component
-$[{\rm Total \hspace{1mm} Abundance |Abundance \hspace{1mm} intensity,Covariate parameters,Local \hspace{1mm} abundance }]$ as well.  Below, we treat each of these components in turn.  Notation is largely defined in the text, but is also provided for convenience in Table \ref{tab:defs}.
+If conducting a Bayesian analysis, the posterior distribution is then proportional to
+$$[ {\rm Data} | {\rm Parameters}][{\rm Prior \hspace{1mm} distributions}].
+$$  Given samples from the posterior, one can make posterior predictions of total abundance, so we might include another component
+$[{\rm Total \hspace{1mm} Abundance |Abundance \hspace{1mm} intensity,Covariate \hspace{1mm} parameters,Local \hspace{1mm} abundance }]$ as well.  Below, we treat each of these components in turn.  Notation is largely defined in the text, but is also provided for convenience in Table \ref{tab:defs}.
 
 \subsubsection*{Observation (data) model}
 
@@ -172,15 +173,15 @@ $$
         \end{array} \right]
 \right),
 $$
-where ${\bf X}^{\rm det}$ gives a design matrix incorporating any desired covariates for abundance, and $\boldsymbol{\beta}^{\rm det}$ gives a vector of regression coefficients.  Correlation ($\rho_{ij}$) is set to be a function of distance by allowing $\rho_{ij} = h(d_{ij}) \rho$, where $d_{ij}$ is the distance value associated with the $i$th observation in the $j$th transect and $\rho$ is an estimated parameter. Correlation could potentially be a function of other covariates as well; however, there is limited information with which to estimate it. In the following development, we assume that correlation increases linearly on the probit scale as a function of distance from the observer.  With binned distance data (i.e. when observers record distance as falling into one of a finite collection of distance intervals), we suppose that
+where ${\bf X}^{\rm det}$ gives a design matrix incorporating any desired covariates for detection probability, and $\boldsymbol{\beta}^{\rm det}$ gives a vector of regression coefficients.  Correlation ($\rho_{ij}$) is set to be a function of distance by allowing $\rho_{ij} = h(d_{ij}) \rho$, where $d_{ij}$ is the distance value associated with the $i$th group in the $j$th transect and $\rho$ is an estimated parameter. Correlation could potentially be a function of other covariates as well; however, there is typically limited information with which to estimate it. In the following development, we assume that correlation changes linearly on the probit scale as a function of distance from the observer.  With binned distance data (i.e. when observers record distance as falling into one of a finite collection of distance intervals), we suppose that
 $$
 h(d_{ij})=\frac{(d_{ij}-1)}{\max(d_{ij}-1)},
 $$
 and with continuous distance data,
 $$
-h(d_{ij})=\frac{(d_{ij}}{\max(d_{ij})}.
+h(d_{ij})=\frac{d_{ij}}{\max(d_{ij})}.
 $$
-In both cases, $\rho_{ij}$ is assumed to be zero on the line (or in the first distance bin), capturing the essential features of point independence \cite{LaakeEtAl2004,BorchersEtAl2006,BucklandEtAl2010}.  This formulation allows increasing dependence of observations as a function of distance, a common phenomenon in distance sampling.
+In both cases, $\rho_{ij}$ is assumed to be zero on the line (or in the first distance bin), capturing the essential features of point independence \cite{LaakeBorchers2004,BorchersEtAl2006,BucklandEtAl2010}.  This formulation allows increasing dependence of observations as a function of distance, a common phenomenon in distance sampling.
 
 In practice, an equivalent reparameterization of this model greatly simplifies posterior simulation. In particular, let
 \begin{equation} \label{eq:obs.mod}
@@ -198,7 +199,7 @@ In practice, an equivalent reparameterization of this model greatly simplifies p
         \end{array} \right]
 \right).
 \end{equation}
-Constraining $Y_{ijk}=1$ if and only if $\tilde{Y}_{ijk}>0$ results in an equivalent probit-Bernoulli model  \cite{AlbertChib1993}.
+Constraining $\tilde{Y}_{ijk}>0$ if and only if $Y_{ijk}=1$ results in an equivalent probit-Bernoulli model  \cite{AlbertChib1993}.
 With multiple observers, conditioning on one value of $\tilde{Y}$ reduces the probability density from a bivariate to a univariate distribution.  In particular,
 \begin{equation}
 \label{eq:biv_to_univ}
@@ -208,25 +209,23 @@ where $\mu_{ijk}={\bf X}_{ijk}^{\rm det} \boldsymbol{\beta}^{\rm det}$.
 
 \subsubsection*{Covariate model}
 
-Some covariates thought to influence detection probability are collected at the transect level (e.g. survey conditions), and are therefore known for all potential groups of animals (observed and unobserved).  However, for covariates associated with individual groups of animals (e.g., distance, group size, species), an underlying model is needed to link the observed covariates (for observed groups) to unobserved covariates (for unobserved groups).  We model these individual covariates as having arisen from a parametric distribution, possibly with overdispersion.  In general, let the covariate $Z_{ijk}$ have the distribution 
+Some covariates thought to influence detection probability are collected at the transect level (e.g. survey conditions), and are therefore known for all potential groups of animals (observed and unobserved).  However, for covariates associated with individual groups of animals (e.g., distance, group size, species), an underlying model is needed to link the observed covariates (for observed groups) to unobserved covariates (for unobserved groups).  We model these individual covariates as having arisen from a parametric distribution, possibly with overdispersion.  In general, let the covariate $Z_{ijk}$ have the distribution
 \begin{equation}
 [g(\theta,\epsilon_{ijk})],
 \label{eq:cov.dist}
 \end{equation}
 where $g()$ specifies an arbitrary function, $\theta$ gives hyper-priors, and $\epsilon_{ijk}$ specifies a random effect.  We have implemented a number of such distributions in our accompanying R package, {\tt HierarchicalDS}.  For instance, the user can choose $[g(\theta,\epsilon_{ijk})]$ to be a uniform, multinomial, Poisson, zero-truncated Poisson, overdispersed Poisson, or overdispersed zero-truncated Poisson distribution.  The overdispersed versions of the Poisson distribution are modeled as in \cite{McClintockEtAl2009}; namely
 $$
-Z_{ijk} \sim {\rm Poisson}(\exp(\theta+\sigma \epsilon_{ijk})),
+Z_{ijk} \sim {\rm Poisson}(\exp(\mu+\sigma \epsilon_{ijk})),
 $$
 where $\epsilon_{ijk} \sim {\rm Normal}(0,1)$.
 The zero-truncated versions of the Poisson distribution are important for modeling covariates such as group size, which are by definition $\ge 1$ \cite{Royle2008}.
 One can also choose to fix the parameters of these distributions, or to specify hyper-prior distributions.  For further information, see Dataset S1.
 
-\subsubsection*{Local abundance model}
-We suppose that the number of groups of animals located in the area sampled by transect $j$ is Poisson distributed with intensity parameter $\lambda_j$.  Overdispersion, if present, can be accommodated in the specification of $\lambda_j$, as described below.
-
 \subsubsection*{Process model}
 
-We model species-habitat relationships by writing abundance intensity as a function of habitat covariates (an intercept only model can be specified if no such covariates are collected).  Letting $\nu_j$ give the log of abundance intensity in the area covered by transect $j$, we impose the following model:
+We suppose that the number of groups of animals located in the area sampled by transect $j$, $G_j$, is Poisson distributed with intensity parameter $\lambda_j$.  Overdispersion, if present, can be accommodated in the specification of $\lambda_j$.
+We model species-habitat relationships by writing abundance intensity as a function of habitat covariates (an intercept only model can be specified if no such covariates are collected).  Letting $\nu_j$ be the log of abundance intensity in the area covered by transect $j$, we impose the following model:
 $$
  \boldsymbol{\nu} \sim {\rm Normal}({\bf X}^{\rm hab}
  \boldsymbol{\beta}^{\rm hab},\tau_\nu^{-1}{\bf I}).
@@ -247,20 +246,20 @@ Total abundance is then calculated as $N=\sum_j N_j$.
 
 \subsubsection*{Prior distributions}
 
-Bayesian analysis requires specification of prior distributions for $\tau_\nu$, $\boldsymbol{\beta}^{\rm hab}$, $\boldsymbol{\beta}^{\rm det}$, and $\boldsymbol{\theta}$.  We chose a conjugate ${\rm Gamma}(\alpha,\beta)$ prior for $\tau_\nu$, so that full conditional distributions were available in closed form and could be sampled directly with Gibbs sampling. In all subsequent analysis, we chose $\alpha=1$ and $\beta=0.01$ to put ample weight on plausible parameter values.
+Bayesian analysis requires specification of prior distributions for $\tau_\nu$, $\boldsymbol{\beta}^{\rm hab}$, $\boldsymbol{\beta}^{\rm det}$, and $\boldsymbol{\theta}$.  We chose a conjugate ${\rm Gamma}(\alpha,\beta)$ prior for $\tau_\nu$, so that full conditional distributions were available in standard form and could be sampled directly with Gibbs sampling. In all subsequent analysis, we chose $\alpha=1$ and $\beta=0.01$ to put ample weight on plausible parameter values.
 
-We gave the $\beta$, which are analagous to regression parameters, vague ${\rm Normal}(0,1000)$ prior distributions, which is a common strategy in regression problems (e.g., \cite{GelmanEtAl2004}, Chapter 14).  In contrast, we tended to impart more structure to the hyper-priors for individual covariates to improve sampling efficiency.  In our two subsequent examples, we incorporated a ${\rm Gamma}(1.1,1.0)$ distribution for the log of group size, and a ${\rm Uniform}(0,1)$ distribution for $\sigma$ (the standard deviation for log group size random effects). For the simulation study and golf tee analysis, species and exposure were modeled with a Dirichlet(10,10) distribution, the conjugate prior for the categorical distribution.  Pilot analyses suggested little sensitivity of results to our choice of prior distributions.
+We gave the $\boldsymbol{\beta}$, which are analagous to regression parameters, vague ${\rm Normal}(0,1000)$ prior distributions, which is a common strategy in regression problems (e.g., \cite{GelmanEtAl2004}, Chapter 14).  In contrast, hyper-priors for individual covariates incorpated greater precision to improve sampling efficiency.  In our two subsequent examples, we incorporated a ${\rm Gamma}(1.1,1.0)$ distribution for the log of group size, and a ${\rm Uniform}(0,1)$ distribution for $\sigma$ (the standard deviation for log group size random effects). For the simulation study and golf tee analysis, species and exposure were modeled with a Dirichlet(10,10) distribution, the conjugate prior for the categorical distribution.  Pilot analyses suggested little sensitivity of results to our choice of prior distributions.
 
 \subsection*{Data augmentation and Bayesian inference}
 
-As suggested previously, the primary challenge in implementing a complete data model for multiple observer transect surveys was in jointly sampling abundance and individual covariates.  We chose to implement a reversible-jump algorithm to sample abundance at the transect level, in a manner similar to Durban and Elston \cite{DurbanElston2005}.  This approach consists of several steps, including (1) additions and deletions of unobserved animals to the population, (2) resampling of covariate values for unobserved animals, and (3) sampling of $\tilde{Y}$ values for new additions. These steps were conducted independently for each transect; thus without loss of generality, we present sampling details for a single transect.
+As suggested previously, the primary challenge in implementing a complete data model for multiple observer transect surveys was in jointly sampling local abundance and individual covariates.  We chose to implement a reversible-jump algorithm to sample abundance at the transect level, in a manner similar to Durban and Elston \cite{DurbanElston2005}.  This approach consists of several steps, including (1) additions and deletions of unobserved animals to the population, (2) resampling of covariate values for unobserved animals, and (3) sampling of $\tilde{Y}$ values for new additions. These steps were conducted independently for each transect; thus without loss of generality, we present sampling details for a single transect.
 
 Specification of the complete data model starts with specifying an integer $M_j$ that serves as the upper limit for the number of groups of animals present in the sampled area of transect $j$. In practice, this integer can be increased if it is found that the posterior group abundance runs up against this bound \cite{DurbanElston2005,RoyleEtAl2007b}. However, choosing too large of a value can dramatically increase computing time.
 
 Addition and deletion steps consist of increasing or decreasing the value of $G_j$, and are accomplished as follows:
 \begin{itemize}
     \item Propose a new value for $G_j$, $G_j^\prime=G_j+u$, where
-    $u\sim {\rm Uniform}(-a,a)$, and $a$ is a tuning parameter set to achieve a target acceptance rate of 0.3-0.4.
+    $u\sim {\rm Discrete \hspace{1mm} Uniform}(-a,a)$, and $a$ is a tuning parameter set to achieve a target acceptance rate of 0.3-0.4.
     \item Accept proposal with probability $r$, where
     $$
     r= \left\{ \begin{array}{lll}
@@ -328,7 +327,7 @@ We developed generalized computing code to conduct MCMC estimation, which we imp
 We first used simulation to verify that our modeling approach provided reasonable estimates of abundance and related parameters.  In particular, we generated a double-observer distance sampling dataset for two species with different habitat preferences and covariate values, but with a common detection function.  For the first species, expected abundance increased linearly with an arbitrary covariate (here, transect number); expected abundance of the second species had a quadratic relationship with the covariate (Fig. \ref{fig:sim_N}).
 
 A total of 25 transects were simulated, each of which had two observers assigned.
-In all cases, observers were picked randomly from a pool of 3 total observers with different underlying detection probabilities.  The assumed detection function was made to be a function of observer, distance, species, and group size.  Correlation between observers was modeled as a linearly increasing function of distance on the probit scale, with a maximum value of 0.5 at the farthest observable distance.  
+In all cases, observers were picked randomly from a pool of 3 total observers with different underlying detection probabilities.  The assumed detection function was made to be a function of observer, distance, species, and group size.  Correlation between observers was modeled as a linearly increasing function of distance on the probit scale, with a maximum value of 0.5 at the farthest observable distance.
 
 Using the true functional form for detection and habitat models, we fitted two Markov chains of length 270,000 with random starting values to this dataset, recording posterior values from one out of every 20 iterations to save disk space.  Convergence was determined by examining trace plots and other standard convergence diagnostics \cite{GelmanEtAl2004}, and occurred after $\approx 20,000$ iterations. Removing the first 20,000 iterations as a burn-in and combining thinned versions of reach chain resulted in 25,000 samples with which to conduct posterior inference.
 
@@ -342,14 +341,14 @@ collected at the University of St. Andrews in 1999 \cite{BorchersEtAl2002}.  Thi
 The locations of 108 groups of green golf tees and 142 groups of yellow golf tees were randomly assigned over a landscape with two spatial strata (Fig. \ref{fig:tee_landscape}).  Experiment designers placed 44 groups of green and 86 groups of yellow tees in the northern stratum (area $=1040 m^2$), with the remainder being placed in the southern stratum (area $=640 m^2$).  Tees were distributed in groups of 1-8 tees according to a predefined distribution (Fig. \ref{fig:tee_group}), and were further classified by level of exposure to surrounding grass, with some tee groups partially hidden by grass (Exposure=0) and others more visible (Exposure=1).
 
 A total of 11 8-m wide transects were used to sample the population of golf tees, with 8 independent observers traversing each transect.  Transects varied in length, but completely covered the study area.  Following Laake and Borchers \cite{LaakeBorchers2004} (hereafter, LB), we pooled observations from observers 1-4 and 5-8 into two separate observation ``teams" in order to investigate the performance of double observer methods in reconstructing true population size.
- 
+
 Using the double observer distance data, we attempted to estimate abundance of each ``species" of tee (here, green and yellow) using our hierarchical probit formulation.  We specified separate models for abundance intensity ($\boldsymbol{\nu}$) for each species, making each a function of stratum. For the probit of detection probability, we used the same model structure as selected by LB as having the most support in the data.  Symbolically, this model expresses the expected value of detection probability (on the probit scale) as
 $$
 {\it Observer+Distance+Size+Species+Exposure+Size*Species+Species*Exposure},
 $$
 where {\it Size} specifies group size, and the `*' symbol denotes a multiplicative interaction between variables.  We modeled group size as a realization of an overdispersed, zero truncated Poisson process, and exposure as a categorical distribution.
 
-We fitted two Markov chains with different starting values to the golf tee data.  After an initial pilot run of 1000 iterations to adjust MCMC tuning parameters to desired ranges, each chain was run for 100,000 iterations.  Inspection of trace plots and other standard MCMC diagnostics suggested that convergence to a stationary distribution was obtained almost immediately; as such, we combined the final 90,000 iterations of each chain together for inference.  
+We fitted two Markov chains with different starting values to the golf tee data.  After an initial pilot run of 1000 iterations to adjust MCMC tuning parameters to desired ranges, each chain was run for 100,000 iterations.  Inspection of trace plots and other standard MCMC diagnostics suggested that convergence to a stationary distribution was obtained almost immediately; as such, we combined the final 90,000 iterations of each chain together for inference.
 
 For comparison with LB, we focus inference on the number of groups of animals (noting that posterior distributions for absolute abundance are also readily available).  The posterior distribution for abundance of golf tees had a mean of 226 groups and 95\% credible interval of (204, 251).  By contrast, LB produced an estimate of 252, which was much closer to the true population size of 250.  However, as LB note, this is somewhat accidental, as estimates of the number of groups in each
 color and exposure class differed substantially from true values.  The hierarchical approach does better in this context, producing estimates that are as good or better than those generated by LB (Fig. \ref{fig:tee_N}).  However, both approaches underestimate abundance for unexposed tees.  We suspect that some of the unexposed tee clusters had very low (perhaps even zero) detection probabilities, and that the simple binary exposure covariate was insufficient to capture this variation.
@@ -357,7 +356,7 @@ color and exposure class differed substantially from true values.  The hierarchi
 Likelihoods for conventional mark-recapture distance sampling (MRDS) estimators are often written as a function of several different types of detection functions \cite{LaakeBorchers2004}.  For instance, the {\it conditional} detection function, $p_{i|j}(d)$ gives the probability that an object at distance $d$ is detected by observer $i$ given that is was detected by observer $j$. Similarly, the {\it individual} detection function, $p_i(d)$ gives the unconditional probability that an object at distance $d$ is detected by observer $i$; the {\it duplicate} detection function, $p_{12}(d)$ gives the probability that the object is detected by both observers; and the {\it pooled} detection function, $p_\cdot(d)$ gives the probability that the object is detected by at least one observer.  If observers are truly independent, there are theoretical relationships between these detection functions that should hold (e.g., $p_{12}(d)=p_1(d)p_2(d)$); as such, examining plots of these detection functions can be informative when examining observer dependence.  Similarly, Buckland et al. \cite{BucklandEtAl2010} defined a dependence parameter, $\delta_d$ to express observer dependence as a function of distance, where $\delta_d=p_{12}(d)/(p_1(d)p_2(d))$.  Although we have not included $\delta_d$ or any of these detection functions explicitly in our modeling efforts, we calculated these quantities post hoc using posterior means to help in interpreting our results.  Observer dependence ($\delta_d$) was estimated to be near 1.0 (that is, no independence) for a large number of combinations of detection covariate values.  Dependence was maximized with small group sizes, the second observer group, and green, unexposed tees (Fig. \ref{fig:tee_cond_det}).  This dynamic suggests heterogeneity in detection for small groups of unexposed tees that are far from observers.
 
 With our hierarchical modeling approach, we were able to estimate some additional parameters and distributions that are not estimable using conventional MRDS methods.  As suggested by Royle  \cite{Royle2008}, we were able to
-estimate a posterior mass function for group sizes in the population (Fig \ref{fig:tee_group}), which compared reasonably with the known empirical distribution.  Similarly, we were able to estimate the proportion of unexposed tees in the population; the posterior mean for green tees was 0.046 (95\% CI: 0.30,0.61), and the posterior mean for yellow tees was 0.50 (95\% CI: 0.40,0.60).  By contrast, true values for this proportion were 0.56 and 0.53, respectively.  Finally, we were able to estimate the effect of habitat covariates (in this case, strata) on abundance intensity.  
+estimate a posterior mass function for group sizes in the population (Fig \ref{fig:tee_group}), which compared reasonably with the known empirical distribution.  Similarly, we were able to estimate the proportion of unexposed tees in the population; the posterior mean for green tees was 0.046 (95\% CI: 0.30,0.61), and the posterior mean for yellow tees was 0.50 (95\% CI: 0.40,0.60).  By contrast, true values for this proportion were 0.56 and 0.53, respectively.  Finally, we were able to estimate the effect of habitat covariates (in this case, strata) on abundance intensity.
 
 
 \section*{Discussion}
@@ -381,7 +380,7 @@ We strongly encourage ecologists interested in abundance and species-habitat rel
 \section*{Acknowledgments}
 We thank D. Borchers for providing us with the golf tee data, and J. Moore and B. McClintock for comments on a previous draft of this paper.
 
-%\section*{References}
+\section*{References}
 % The bibtex filename
 \bibliography{master_bib}
 \clearpage

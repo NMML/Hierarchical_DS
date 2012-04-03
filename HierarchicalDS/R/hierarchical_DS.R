@@ -163,6 +163,7 @@ hierarchical_DS<-function(Dat,Adj,Area.hab=1,Mapping,Area.trans,Observers,Bin.le
 	require(truncnorm)
 	require(mc2d)
 	require(MCMCpack)
+	require(compiler)
 	DEBUG=FALSE
 	
 	Adj=as.matrix(Adj)  #just in case the adjacency matrix = 1 (for 1 transect)
@@ -327,13 +328,19 @@ hierarchical_DS<-function(Dat,Adj,Area.hab=1,Mapping,Area.trans,Observers,Bin.le
 	N.hab.par=rep(0,n.species)
 	DM.hab=vector('list',n.species)
 	if(1==1){
-		if(is.null(Hab.cov))DM.hab[[1]]=as.matrix(1)
+		if(is.null(Hab.cov)){
+			DM.hab[[1]]=as.matrix(rep(1,S),ncol=1)
+			colnames(DM.hab[[1]])="Intercept"
+		}
 		else DM.hab[[1]]=model.matrix(Hab.formula[[1]],data=Hab.cov)
 	}
 	N.hab.par[1]=ncol(DM.hab[[1]])
 	if(n.species>1){
 		for(i in 2:n.species){  #create design matrices for each species. e.g., name for first species will be DM.hab1
-			if(is.null(Hab.cov))DM.hab[[i]]=as.matrix(1)
+			if(is.null(Hab.cov)){
+				DM.hab[[i]]=as.matrix(rep(1,S),ncol=1)
+				colnames(DM.hab[[i]])="Intercept"
+			}
 			else DM.hab[[i]]=model.matrix(Hab.formula[[i]],data=Hab.cov)
 			N.hab.par[i]=ncol(DM.hab[[i]])
 		}
@@ -393,7 +400,8 @@ hierarchical_DS<-function(Dat,Adj,Area.hab=1,Mapping,Area.trans,Observers,Bin.le
 			G.transect=G.transect,N.transect=N.transect,grps=grps,n.bins=n.bins,Bin.length=Bin.length,n.ind.cov=n.ind.cov,
 			Cov.prior.pdf=Cov.prior.pdf,Cov.prior.parms=Cov.prior.parms,Cov.prior.fixed=Cov.prior.fixed,Cov.prior.n=Cov.prior.n,point.ind=point.ind,fix.tau.nu=fix.tau.nu,
 			srr=srr,srr.tol=srr.tol,misID=misID,misID.models=misID.models,misID.mat=misID.mat,N.par.misID=N.par.misID,N.hab.par=N.hab.par)
-		
+	
+	mcmc_ds<-cmpfun(mcmc_ds)
 	if(adapt==TRUE){
 		cat('\n Beginning adapt phase \n')
 		Out=mcmc_ds(Par=Par,Data=Data,cur.iter=Control$adapt,adapt=1,Control=Control,DM.hab=DM.hab,DM.det=DM.det,Q=Q,Prior.pars=Prior.pars,Meta=Meta)
