@@ -190,6 +190,7 @@ hierarchical_DS<-function(Dat,Adj,Area.hab=1,Mapping,Area.trans,Observers,Bin.le
 	cur.colnames=colnames(Dat)
 	cur.colnames[6+n.obs.cov]="Distance"
 	if(grps==TRUE)cur.colnames[7+n.obs.cov]="Group"
+	if(length(colnames(Dat))!=length(cur.colnames))cat("\n ERROR: mismatch between dimension of Dat and expected columns: check to make sure n.obs.cov, etc. correct")
 	colnames(Dat)=cur.colnames
 	i.binned=0
 	n.bins=NULL
@@ -207,7 +208,7 @@ hierarchical_DS<-function(Dat,Adj,Area.hab=1,Mapping,Area.trans,Observers,Bin.le
 	Dat.num=as.data.frame(Dat.num)
 	
 	n.Observers=apply(1-is.na(Observers),2,'sum')
-	M=M*n.Observers	#actual dimension of M goes up if >1 observer
+	M=M*n.Observers	#actual dimension of M goes up if >1 observer 
 	max.M=max(M)
 	
 	#add an additional column for "True species" and fill

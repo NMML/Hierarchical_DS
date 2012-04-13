@@ -122,7 +122,7 @@ When animals are detectable from the air, from vessels at sea, or by other means
 
 Researchers have extended conventional distance sampling to account for a variety of complications that arise in real life sampling scenarios.  Several studies have utilized multiple observers to relax the assumption of 100\% detection on the transect line \cite{BorchersEtAl1998}, and to model heterogeneity in detection as a function of distance \cite{LaakeBorchers2004,BorchersEtAl2006,BucklandEtAl2010}.  These features are common in many datasets, and can cause negative bias in abundance estimates if unaccounted for.  Other authors have extended conventional distance sampling to model the effects of individual and external covariates on detection probabilities \cite{DrummerMcdonald1987,RamseyEtAl1987,MarquesBuckland2003}.  As with conventional approaches to distance sampling, estimators are often obtained via a two-stage approach, whereby analysts first formulate models for multiple-observer and distance data, and then estimate abundance using a Horvitz-Thompson-like estimator \cite{Huggins1989,Alho1990}.
 
-Several authors have recently proposed using hierarchical, Bayesian models in place of likelihood or moment-based estimators to analyze distance sampling data \cite{RoyleDorazio2008,LinkBarker2010,RoyleDorazio2010,MooreBarlow2011,ChelgrenEtAl2011,SchmidtEtAl2012}. The appeal of using hierarchical models is undeniable, as they permit inferences to be made about the relationship of animal abundance to habitat-specific covariates \cite{RoyleEtAl2004}, and allow parsimonious relationships to be specified among abundance parameters in time and space \cite{RoyleEtAl2007}.
+Several authors have recently proposed using hierarchical, Bayesian models in place of likelihood or moment-based estimators to analyze distance sampling data \cite{RoyleDorazio2008,LinkBarker2010,RoyleDorazio2010,MooreBarlow2011,ChelgrenEtAl2011,SchmidtEtAl2012}. The appeal of using hierarchical models is undeniable, as they permit straightforward inference about the relationship of animal abundance to habitat-specific covariates \cite{RoyleEtAl2004}, and allow parsimonious relationships to be specified among abundance parameters in time and space \cite{RoyleEtAl2007}.
 For instance, Moore and Barlow \cite{MooreBarlow2011} and Chelgren et al. \cite{ChelgrenEtAl2011} recently used hierarchical models to account for strata and year effects on animal densities when analyzing line transect data.
 
 Thus far, attempts to analyze line transect data with hierarchical models have focused on single observer data.  In this paper, we develop hierarchical models for double observer data that permit habitat covariates to influence abundance intensity, while simultaneously modeling effects of covariates on detection probability.  Since double observers are employed, these models allow for $<$100\% detection on the transect line (by contrast, previously developed hierarchical modeling approaches had to assume 100\% detection on the line).  Our approach can also accommodate increasing dependence among observer detections as a function of distance.  Building upon previous work by Durban and Elston \cite{DurbanElston2005} in the context of mark-recapture modeling, our approach for modeling detections and abundance at the transect level is based on data augmentation \cite{TannerWong1987,RoyleEtAl2007b}, using a reversible jump Markov chain Monte Carlo (RJMCMC) algorithm \cite{CarlinChib1995,Green1995} to sample abundance and individual covariates.  Much of the modeling is accomplished in probit space, which greatly simplifies Bayesian computation \cite{AlbertChib1993}.
@@ -181,9 +181,10 @@ and with continuous distance data,
 $$
 h(d_{ij})=\frac{d_{ij}}{\max(d_{ij})}.
 $$
-In both cases, $\rho_{ij}$ is assumed to be zero on the line (or in the first distance bin), capturing the essential features of point independence \cite{LaakeBorchers2004,BorchersEtAl2006,BucklandEtAl2010}.  This formulation allows increasing dependence of observations as a function of distance, a common phenomenon in distance sampling.
+In both cases, $\rho_{ij}$ is assumed to be zero on the line (or in the first distance bin), capturing the essential features of point independence \cite{LaakeBorchers2004,BorchersEtAl2006,BucklandEtAl2010}.  This formulation allows increasing dependence of observations as a function of distance, a common phenomenon in distance sampling \cite{LaakeBorchers2004,BorchersEtAl2006,BucklandEtAl2010}.
 
-In practice, an equivalent reparameterization of this model greatly simplifies posterior simulation. In particular, let
+Like the (more popular) logit link function, the probit link function provides a transformation from $(-\infty,\infty)$ space (the space of the linear predictor) to $(0,1)$ space (probability space).  However, use of a probit link allowed us to employ the computationally efficient posterior simulation algorithm suggested by Albert and Chib \cite{AlbertChib1993}.  In particular, we augment each detection with a latent variable, $\tilde{Y}_{ijk}$, where $\tilde{Y}_{ijk}>0$ if and only if $Y_{ijk}=1$.  Then,
+we suppose that
 \begin{equation} \label{eq:obs.mod}
 \left(\begin{array}{c}
 				\tilde{Y}_{ij1} \\
@@ -199,13 +200,15 @@ In practice, an equivalent reparameterization of this model greatly simplifies p
         \end{array} \right]
 \right).
 \end{equation}
-Constraining $\tilde{Y}_{ijk}>0$ if and only if $Y_{ijk}=1$ results in an equivalent probit-Bernoulli model  \cite{AlbertChib1993}.
+
 With multiple observers, conditioning on one value of $\tilde{Y}$ reduces the probability density from a bivariate to a univariate distribution.  In particular,
 \begin{equation}
 \label{eq:biv_to_univ}
-[\tilde{Y}_{ij1} | \tilde{Y}_{ij2},\beta^{\rm hab},\rho_{ij}]={\rm Normal}(\mu_{ij1}+\rho_{ij}(\tilde{Y}_{ij2}-\mu_{ij2}),1-\rho_{ij}^2),
+[\tilde{Y}_{ij1} | \tilde{Y}_{ij2},\beta^{\rm det},\rho_{ij}]={\rm Normal}(\mu_{ij1}+\rho_{ij}(\tilde{Y}_{ij2}-\mu_{ij2}),1-\rho_{ij}^2),
 \end{equation}
 where $\mu_{ijk}={\bf X}_{ijk}^{\rm det} \boldsymbol{\beta}^{\rm det}$.
+The $\tilde{Y}_{ijk}$ can then be updated within MCMC using a Gibbs step with a truncated normal
+distribution; the $\boldsymbol{\beta}^{\rm det}$ can also be updated directly with Gibbs steps (see Text S1 for further details).
 
 \subsubsection*{Covariate model}
 
@@ -218,7 +221,7 @@ where $g()$ specifies an arbitrary function, $\theta$ gives hyper-priors, and $\
 $$
 Z_{ijk} \sim {\rm Poisson}(\exp(\mu+\sigma \epsilon_{ijk})),
 $$
-where $\epsilon_{ijk} \sim {\rm Normal}(0,1)$.
+where $\epsilon_{ijk} \sim {\rm Normal}(0,1)$ and $\mu$ and $\sigma$ are parameters to be estimated.
 The zero-truncated versions of the Poisson distribution are important for modeling covariates such as group size, which are by definition $\ge 1$ \cite{Royle2008}.
 One can also choose to fix the parameters of these distributions, or to specify hyper-prior distributions.  For further information, see Dataset S1.
 
@@ -252,7 +255,7 @@ We gave the $\boldsymbol{\beta}$, which are analagous to regression parameters, 
 
 \subsection*{Data augmentation and Bayesian inference}
 
-As suggested previously, the primary challenge in implementing a complete data model for multiple observer transect surveys was in jointly sampling local abundance and individual covariates.  We chose to implement a reversible-jump algorithm to sample abundance at the transect level, in a manner similar to Durban and Elston \cite{DurbanElston2005}.  This approach consists of several steps, including (1) additions and deletions of unobserved animals to the population, (2) resampling of covariate values for unobserved animals, and (3) sampling of $\tilde{Y}$ values for new additions. These steps were conducted independently for each transect; thus without loss of generality, we present sampling details for a single transect.
+As suggested previously, the primary challenge in implementing a complete data model for multiple observer transect surveys was in jointly sampling local abundance and individual covariates.  We chose to implement a reversible-jump algorithm (RJMCMC) to sample abundance at the transect level, in a manner similar to Durban and Elston \cite{DurbanElston2005}. The RJMCMC approach is commonly used in cases where the dimensionality of the parameter space is unknown (in our case, abundance is unknown) \cite{Green1995}, and provides a mechanism to grow or shrink the number of parameters during posterior simulation. In our case, RJMCMC consists of several steps, including (1) additions and deletions of unobserved animals, (2) resampling of covariate values for unobserved animals, and (3) sampling of $\tilde{Y}$ values for new additions. These steps were conducted independently for each transect; thus without loss of generality, we present sampling details for a single transect.
 
 Specification of the complete data model starts with specifying an integer $M_j$ that serves as the upper limit for the number of groups of animals present in the sampled area of transect $j$. In practice, this integer can be increased if it is found that the posterior group abundance runs up against this bound \cite{DurbanElston2005,RoyleEtAl2007b}. However, choosing too large of a value can dramatically increase computing time.
 
@@ -294,7 +297,7 @@ Addition and deletion steps consist of increasing or decreasing the value of $G_
         \right) dx dy
     $$
 
-These Metropolis ratios follow directly from a sampling model where the likelihood of observing $G_j^{\rm obs}$ individuals out of $G_j$ total animals is
+The Metropolis ratio, $r$, follows directly from a sampling model where the likelihood of observing $G_j^{\rm obs}$ individuals out of $G_j$ total animals is
 $$
 \left( \begin{array}{l}
 G_j \\
@@ -340,7 +343,7 @@ collected at the University of St. Andrews in 1999 \cite{BorchersEtAl2002}.  Thi
 
 The locations of 108 groups of green golf tees and 142 groups of yellow golf tees were randomly assigned over a landscape with two spatial strata (Fig. \ref{fig:tee_landscape}).  Experiment designers placed 44 groups of green and 86 groups of yellow tees in the northern stratum (area $=1040 m^2$), with the remainder being placed in the southern stratum (area $=640 m^2$).  Tees were distributed in groups of 1-8 tees according to a predefined distribution (Fig. \ref{fig:tee_group}), and were further classified by level of exposure to surrounding grass, with some tee groups partially hidden by grass (Exposure=0) and others more visible (Exposure=1).
 
-A total of 11 8-m wide transects were used to sample the population of golf tees, with 8 independent observers traversing each transect.  Transects varied in length, but completely covered the study area.  Following Laake and Borchers \cite{LaakeBorchers2004} (hereafter, LB), we pooled observations from observers 1-4 and 5-8 into two separate observation ``teams" in order to investigate the performance of double observer methods in reconstructing true population size.
+A total of 11 8-m wide transects were used to sample the population of golf tees, with 8 independent observers traversing each transect.  Transects varied in length, but completely covered the study area.  We attempted to model these data in a similar manner to Laake and Borchers \cite{LaakeBorchers2004} (hereafter, LB), in order to make valid comparisons.  Like LB, we pooled observations from observers 1-4 and 5-8 into two separate observation ``teams" in order to investigate the performance of double observer methods in reconstructing true population size.
 
 Using the double observer distance data, we attempted to estimate abundance of each ``species" of tee (here, green and yellow) using our hierarchical probit formulation.  We specified separate models for abundance intensity ($\boldsymbol{\nu}$) for each species, making each a function of stratum. For the probit of detection probability, we used the same model structure as selected by LB as having the most support in the data.  Symbolically, this model expresses the expected value of detection probability (on the probit scale) as
 $$
@@ -364,11 +367,13 @@ estimate a posterior mass function for group sizes in the population (Fig \ref{f
 Double-observer transect data are widely used to estimate abundance of animal populations. Although previously available estimators (notably, Horvitz-Thompson-like estimators [HT]; \cite{BorchersEtAl2002}) have proven remarkably versatile for estimating abundance from such data, they are of limited utility in making inference about the effects of ecological covariates on abundance, estimating the distribution of individual covariates in a population, and in making predictions about abundance in unsampled areas.
 The latter is especially important when it is not feasible to employ design-based statistical inference \cite{Cochran1977}, either due to logistical or political constraints (e.g. certain areas are impossible to sample) or because the relative density of animals changes during the study \cite{VerHoefEtAl2011}.
 
-We have presented a general framework for hierarchical analysis of double observer transect data that removes many of these constraints.  In particular, abundance intensity can be made a function of habitat covariates, so that extrapolation to unsampled areas is relatively straightforward (assuming that covariates are known for these areas).  Further, precision of abundance estimates should be better than HT estimators whenever an explanatory habitat covariate can be identified.  Modeling data from multiple observers allows us to relax the assumption of 100\% detection on the transect line.  Observer dependence can be accommodated via a bivariate normal distribution on the probit scale, helping to account for an increase in detection heterogeneity as a function of distance.  To our knowledge, this is the first attempt at constructing a hierarchical model for double observer transect data.
+An alternative approach to extrapolating abundance over a large spatial domain is to use a multi-stage statistical procedure, where the outputs from the first stage of modeling (e.g. density estimates) are used as inputs (data) for a second round of modeling (e.g. using a spatial model with habitat covariates) \cite{Forney2000,HedleyBuckland2004}.  This approach is widely used for extrapolating line transect estimates to unsampled areas in absence of a truly experimental sample design, particularly for cetaceans \cite{RedfernEtAl2006,BeckerEtAl2000}.  However, care must be taken that variability associated with model outputs in the first stage of modeling are carried through when producing final abundance estimates \cite{VerHoefEtAl2011}.
+
+We have presented a general framework for hierarchical analysis of double observer transect data that avoids many of these difficulties, obtaining posterior distributions for all parameters from a single analysis.  In particular, abundance intensity can be made a function of habitat covariates, so that extrapolation to unsampled areas is straightforward (assuming that covariates are known for these areas).  Further, precision of abundance estimates should be better than HT estimators whenever an explanatory habitat covariate can be identified.  Modeling data from multiple observers allows us to relax the assumption of 100\% detection on the transect line.  Observer dependence can be accommodated via a bivariate normal distribution on the probit scale, helping to account for an increase in detection heterogeneity as a function of distance.  To our knowledge, this is the first attempt at constructing a hierarchical model for double observer transect data.
 
 Our model performed well in estimating abundance of two simulated populations whose abundance intensities were linearly and quadratically related to a hypothesized habitat covariate.  The model also performed well when estimating the abundance of a known population of golf tees, in some cases outperforming conventional MRDS HT estimators.  The estimates from both approaches (hierarchical, MRDS) tended to underestimate the number of golf tees that were visually obstructed; however, we suspect that this was largely due to some groups of tees being virtually undetectable.  As such, this should not be seen as a failure of our proposed method, but as an artifact of the particular dataset.  It is well known that transect data alone will produce negatively biased estimates if some subset of the population is unavailable for detection \cite{McLaren1961}; further elaborations are needed to arrive at unbiased estimates in these cases \cite{Marsh1989,Bengtson2005,DiefenbachEtAl2007}.
 
-We have chosen to pursue a parameterization for data augmentation based on RJMCMC \cite{DurbanElston2005} rather than an alternative ``occupancy" parameterization recently advocated by several authors (e.g. \cite{RoyleDorazio2008,LinkBarker2010}).  In a single site (or single transect) analysis, the two parameterizations are effectively identical, with the latter being more computationally efficient \cite{LinkBarker2010}.  However, with multiple sites (or transects), the parameterization chosen for data augmentation can have practical ramifications for inference.  A limiting case in spatial models is that counts (e.g., abundances in given transects) are distributed according to a Poisson distribution.  The Poisson distribution has the convenient property of proportional scaling.  For example, if transects differ in spatial support (i.e. are of different area), then abundance in a given transect $i$ can be assumed to follow a ${\rm Poisson}(A_i\lambda)$ distribution.  As we have shown in this paper, this relationship can be incorporated with relative ease using an RJMCMC data augmentation strategy (overdispersion relative to the Poisson distribution can be readily accommodated). By contrast, the approach advocated by Royle and Dorazio \cite{RoyleDorazio2008} and Link and Barker \cite{LinkBarker2010} requires use of an occupancy parameter, $\psi$, the interpretation of which requires reference to the value of $M$ assumed in the model (e.g., $\psi=a\lambda/M$.  Further, the variance of expected abundance in this model (e.g. ${\rm Var}(G)=\psi (1-\psi)/M = a\lambda-a^2\lambda^2$) is negatively biased with regard to the Poisson variance (i.e. ${\rm Var}(G)=a\lambda$).  What effect this has on conducting hierarchical inference on abundance is presently unknown, but we recommend using the RJMCMC approach whenever spatial support differs among the areas sampled (e.g. when transects vary in size).
+We made a number of modeling choices that differ from the way in which line transect data are typically analyzed. Some of these choices, together with our rationale, are listed in Table \ref{tab:choices}.  One choice that deserves further explanation is our preference of the RJMCMC formulation for conducting inference in favor of an alternative ``occupancy" parameterization recently advocated by several authors (e.g. \cite{RoyleDorazio2008,LinkBarker2010}).  In a single site (or single transect) analysis, the two parameterizations are effectively identical, with the latter being more computationally efficient \cite{LinkBarker2010}.  However, with multiple sites (or transects), the parameterization chosen for data augmentation can have practical ramifications for inference.  A limiting case in spatial models is that counts (e.g., abundances in given transects) are distributed according to a Poisson distribution.  The Poisson distribution has the convenient property of proportional scaling.  For example, if transects differ in spatial support (i.e. are of different area), then abundance in a given transect $i$ can be assumed to follow a ${\rm Poisson}(A_i\lambda)$ distribution.  As we have shown in this paper, this relationship can be incorporated with relative ease using an RJMCMC data augmentation strategy (overdispersion relative to the Poisson distribution can be readily accommodated). By contrast, the approach advocated by Royle and Dorazio \cite{RoyleDorazio2008} and Link and Barker \cite{LinkBarker2010} requires use of an occupancy parameter, $\psi$, the interpretation of which requires reference to the value of $M$ assumed in the model (e.g., $\psi=a\lambda/M$.  Further, the variance of expected abundance in this model (e.g. ${\rm Var}(G)=\psi (1-\psi)/M = a\lambda-a^2\lambda^2$) is negatively biased with regard to the Poisson variance (i.e. ${\rm Var}(G)=a\lambda$).  What effect this has on conducting hierarchical inference on abundance is presently unknown, but we recommend using the RJMCMC approach whenever spatial support differs among the areas sampled (e.g. when transects vary in size).
 
 Although we are convinced that our approach is valuable for making predictions in unsampled areas, there is clearly need for more research in this area.  By virtue of it's hierarchical structure, our approach can easily be extended to incorporate spatial autocorrelation in abundance.  For instance, Schmidt et al. \cite{SchmidtEtAl2012} recently used conditionally autoregressive (CAR) models to account for spatial dependence in single observer transect data.  However, predicting abundance with such models can be tricky, with spurious ``edge effects" that can potentially compromise estimates of landscape-wide abundance \cite{VerHoefJansen2007}.  Best practices for conducting posterior predictions with such models is a subject of current research.
 
@@ -511,6 +516,30 @@ $A_j$   & & The proportional area of strata $j$ relative to mean strata area\\
 \end{flushleft}
 \label{tab:defs}
 \end{table}
+
+\begin{table}
+\caption{{\bf Modeling choices and justification}. Choices, alternative(s), and advantages of the
+modeling choices we made when analyzing double observer line transect data.}
+\begin{tabular}{p{3cm}l p{3cm}l p{3cm}l p{4cm}}
+\hline \hline \\
+Modeling construct & & Choice & & Alternatives & & Advantages \\
+\hline
+& & & & & & \\
+{\it Point independence} & & Bivariate normal distribution with correlation as a function of distance
+& & Individual random effect & & Not needed when there is one observer \\
+& & & & & & \\
+{\it Detection model link function} & & Probit & & Logit, complimentary log-log & & Simplifies Bayesian computation through
+Albert and Chib algorithm \cite{AlbertChib1993} \\
+& & & & & & \\
+{\it Data representation} & & Complete data likelihood/ data augmentation & & Observed data likelihood
+& & Eases explicit conditioning, simplifies likelihood computations, and enables extensions such as species misidentification\\
+& & & & & & \\
+{\it Estimation procedure} & & Reversible Jump MCMC (RJMCMC) & & Fixed dimension Bayesian inference (e.g. using occupancy-like setup \cite{RoyleEtAl2007})  & & Straightforward implementation for non-uniform spatial support (e.g. unequal transect lengths)\\
+\hline
+\end{tabular}
+\label{tab:choices}
+\end{table}
+
 
 %\begin{table}[!ht]
 %\caption{

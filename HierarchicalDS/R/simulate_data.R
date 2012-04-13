@@ -31,12 +31,13 @@ simulate_data<-function(S,Observers,misID=TRUE,X.site=NULL,n.species=2,Beta.hab=
 	#process parameters
 	if(is.null(X.site)==TRUE)X.site=cbind(rep(1,S),log(c(1:S)/S),(log(c(1:S)/S))^2) #covariate on abundance intensity, sp 1
 	if(is.null(Beta.hab)==TRUE){
+		Beta.hab=matrix(0,n.species,3)
 		Beta.hab[1,]=c(log(40),1,0) 
 		if(n.species==2)Beta.hab[2,]=c(log(10),-2,-1)
 	}
 	
 	#detection parameters
-	if(dist.cont==FALSE)Levels=list(Observer=unique(c(Observers)),Distance=as.factor(c(1:n.bins)),Species=as.factor(1:n.species))
+	if(dist.cont==FALSE)Levels=list(Observer=sort(unique(c(Observers))),Distance=as.factor(c(1:n.bins)),Species=as.factor(1:n.species))
 	else Levels=list(Observer=unique(c(Observers)),Species=as.factor(1:n.species))
 	factor.ind=list(Observer=TRUE,Distance=(dist.cont==FALSE),Group=FALSE,Species=TRUE)
 	

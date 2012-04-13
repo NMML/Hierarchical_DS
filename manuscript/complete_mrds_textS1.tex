@@ -106,79 +106,44 @@ Here, we describe full conditional distributions and Markov chain Monte Carlo up
 
 The full conditional distribution for $[\boldsymbol{\beta}^{\rm hab}|\hdots]$ (the conditional distribution of $\boldsymbol{\beta}^{\rm hab}$ given all other parameters is given by
 $$
-    [\boldsymbol{\nu} | \boldsymbol{\beta}^{\rm hab},{\bf X}^{\rm hab},\boldsymbol{\eta},\tau_\nu][\boldsymbol{\beta}^{\rm hab}]\propto[\boldsymbol{\nu} | \boldsymbol{\beta}^{\rm hab},{\bf X}^{hab},\boldsymbol{\eta},\tau_\nu],
+    [\boldsymbol{\nu} | \boldsymbol{\beta}^{\rm hab},{\bf X}^{\rm hab},\tau_\nu][\boldsymbol{\beta}^{\rm hab}]\propto[\boldsymbol{\nu} | \boldsymbol{\beta}^{\rm hab},{\bf X}^{hab},\tau_\nu],
 $$
-where $ [\boldsymbol{\nu} | \boldsymbol{\beta}^{\rm hab},{\bf X}^{\rm hab},\boldsymbol{\eta},\tau_\nu]$
+where $ [\boldsymbol{\nu} | \boldsymbol{\beta}^{\rm hab},{\bf X}^{\rm hab},\tau_\nu]$
 is the product normal likelihood
 \begin{equation} \label{eq:nu.lik}
-{\rm Normal}(\boldsymbol{\nu};{\bf X}^{\rm hab} \boldsymbol{\beta}^{\rm hab} +\boldsymbol{\eta},\tau_\nu^{-1}{\bf I}).
+{\rm Normal}(\boldsymbol{\nu};{\bf X}^{\rm hab} \boldsymbol{\beta}^{\rm hab} +\tau_\nu^{-1}{\bf I}).
 \end{equation}
 Rewriting Eq. \ref{eq:nu.lik} as
 $$
-{\rm Normal}(\boldsymbol{\nu}-\boldsymbol{\eta};{\bf X}^{\rm hab}\boldsymbol{\beta}^{\rm hab} ,\tau_\nu^{-1}{\bf I})
+{\rm Normal}(\boldsymbol{\nu};{\bf X}^{\rm hab}\boldsymbol{\beta}^{\rm hab} ,\tau_\nu^{-1}{\bf I})
 $$
 makes it into a standard linear regression formula. We may
 thus use Gibbs sampling to sample directly from $[\boldsymbol{\beta}^{\rm hab}|\hdots]$ (e.g. \cite{GelmanEtAl2004}, chapter 14), using
 \begin{equation}
 \label{eq:beta.post}
-[\boldsymbol{\beta}^{\rm hab}|\hdots]={\rm Normal}(({\bf X}^\prime {\bf X})^{-1}{\bf X}^\prime (\boldsymbol{\nu}-\boldsymbol{\eta}),\tau_\nu^{-1}({\bf X}^\prime {\bf X})^{-1})
+[\boldsymbol{\beta}^{\rm hab}|\hdots]={\rm Normal}(({\bf X}^\prime {\bf X})^{-1}{\bf X}^\prime (\boldsymbol{\nu}-),\tau_\nu^{-1}({\bf X}^\prime {\bf X})^{-1})
 \end{equation}
 (temporarily replacing ${\bf X}^{\rm hab}$ with ${\bf X}$).
 
-\subsection*{Sampling $\boldsymbol{\eta}$}
-
-We employ a similar strategy to sample from  $[\boldsymbol{\eta}|\hdots]$.  In this case, we
-rewrite Eq. \ref{eq:nu.lik} as
-$$
-{\rm Normal}(\boldsymbol{\nu}-{\bf X}^{\rm hab}\boldsymbol{\beta}^{\rm hab};\boldsymbol{\eta} ,\tau_\nu^{-1}{\bf I}).
-$$
-Here, the ``data" are $(\boldsymbol{\nu}-{\bf X}^{\rm hab}\boldsymbol{\beta}^{\rm hab})$, while the regression parameters are $\boldsymbol{\eta}$ with an identity design matrix. In application without spatial restriction of random effects, the prior precision of $\boldsymbol{\eta}$ is ${\bf Q}^{-1}$, so that
-$$
-[\boldsymbol{\eta}|\hdots] = {\rm Normal}(\Sigma_\eta \tau_\nu (\boldsymbol{\nu}-{\bf X}^{\rm hab}\boldsymbol{\beta}^{\rm hab}),\Sigma_\eta),
-$$
-where
-$$
-\Sigma_\eta=(\tau_\nu{\bf I} + {\bf Q})^{-1}.
-$$
-This distribution may be sampled directly via Gibbs sampling. Owing to the sparse nature of $\bQ$, we increased computational efficiency by utilizing numerical routines specifically formulated for sparse matrices (see Dataset S1).
-
-In applications with spatial restriction, $\boldsymbol{\eta} = {\bf K}\boldsymbol{\theta}$, so we instead need to sample $\boldsymbol{\theta}$.  In this case, we redefine the precision matrix of the ICAR process as ($\bQ_\theta={\bf K}^\prime \bQ {\bf K}$), and write the full conditional distribution for $\boldsymbol{\theta}$ as
-$$
-[\boldsymbol{\theta}|\hdots] = {\rm Normal}(\Sigma_\theta \tau_\nu {\bf K}^\prime (\boldsymbol{\nu}-{\bf X}^{\rm hab}\boldsymbol{\beta}^{\rm hab}),\Sigma_\theta),
-$$
-where $\Sigma_\theta=(\tau_\nu {\bf K}^\prime {\bf K} + {\bf Q_\theta})^{-1}$ \cite{HughesHaran2012,JohnsonEtAl2012}.
-
-
-
-\subsection*{Sampling $\tau_\eta$}
-Given a $\textrm{Gamma}(\alpha_\eta,\beta_\eta)$ prior, $\tau_\eta$ may be directly sampled using
-$$
-\tau_\eta \sim \textrm{Gamma}\left( 0.5(S-1)+\alpha_\eta,0.5\boldsymbol{\eta}^\prime {\bf Q} \boldsymbol{\eta}+\beta_\eta \right).
-$$
-When spatial restriction is employed,
-$$
-\tau_\eta \sim \textrm{Gamma}\left( 0.5(n-1)+\alpha_\eta,0.5\boldsymbol{\theta}^\prime \bQ_\theta \boldsymbol{\theta} +\beta_\eta \right),
-$$
-where $n$ gives the length of $\boldsymbol{\theta}$.
 
 \subsection*{Sampling $\boldsymbol{\nu}$}
 We used different strategies for updating $\nu_s$ depending on whether or not sampling was conducted in strata $s$. To update $\nu_s$ for cells where sampling was not conducted, we simulated $\nu_s$ directly using
 $$
-\nu_s \sim {\rm Normal}([{\bf X}^{\rm hab} \boldsymbol{\beta}^{\rm hab}]_s+\eta_s,\tau_\nu^{-1}).
+\nu_s \sim {\rm Normal}([{\bf X}^{\rm hab} \boldsymbol{\beta}^{\rm hab}]_s,\tau_\nu^{-1}).
 $$
 We simultaneously updated the remaining elements of $\boldsymbol{\nu}$ using
 a Langevin-Hastings algorithm \cite{RobertCasella2004}.  The Langevin-Hastings algorithm utilizes the numerical gradient of the full conditional distribution to make more efficient proposals, which are accepted or rejected based on a modified Metropolis ratio.  The full conditional distribution for $\boldsymbol{\nu}$ needed to perform Langevin-Hastings updates is given by
 $$
-\left[ \boldsymbol{\nu} | \hdots \right] = \textrm{Normal}\left(\boldsymbol{\nu};{\bf X}^{\rm hab}\boldsymbol{\beta}^{\rm hab}+\boldsymbol{\eta},\tau_\nu^{-1} {\bf I} \right) \prod_i \textrm{Poisson} \left( G_i; \exp(\nu_i) \right),
+\left[ \boldsymbol{\nu} | \hdots \right] = \textrm{Normal}\left(\boldsymbol{\nu};{\bf X}^{\rm hab}\boldsymbol{\beta}^{\rm hab},\tau_\nu^{-1} {\bf I} \right) \prod_i \textrm{Poisson} \left( G_i; \exp(\nu_i) \right),
 $$
 where {\bf I} is an identity matrix.
 
 \subsection*{Sampling $\tau_\nu$}
-As with $\tau_\eta$, $\tau_\nu$ may be directly sampled using
+We directly sample $\tau_\nu$ may using
 $$
 \tau_\nu \sim \textrm{Gamma}\left( 0.5S+\alpha_\nu,0.5\boldsymbol{\mu}_\nu^\prime \boldsymbol{\mu}_\nu+\beta_\nu \right),
 $$
-where $\boldsymbol{\mu}_\nu={\bf X}^{\rm hab}\boldsymbol{\beta}^{\rm hab}+\boldsymbol{\eta}$.
+where $\boldsymbol{\mu}_\nu={\bf X}^{\rm hab}\boldsymbol{\beta}^{\rm hab}$.
 
 \subsection*{Sampling $\boldsymbol{\beta}^{\rm det}$}
 

@@ -7,6 +7,7 @@
 #' 		"Nu": a vector giving the log of the abundance intensity for each strata;
 #' 		"G": a vector giving the number of groups of animals in each strata; 
 #' 		"N": a vector giving the number of animals in each strata
+#' 		"Cov.par": an (n.species X n X n.ind.cov)  array holding parameters of individual covariate distributions.
 #' @param Data   A four dimensional array; the first dimension gives species, the second gives the transect, the third indexes a (possible) observation, 
 #' 			and the fourth dimension gives observations and covariates associated with a given animal.
 #' 			These final columns are: Observer ID,Y(observation=0/1),Observed species,Obs covariates,Distance,Ind covariates
@@ -31,6 +32,8 @@
 #'	"a.nu": alpha parameter for prior precision of overdispersion process (assumed Gamma(a.nu,b.nu))
 #'	"b.nu": beta parameter for prior precision of overdispersion process (assumed Gamma(a.nu,b.nu)) 
 #'	"beta.sd": standard deviation for regression coefficients (assumed Normal(0,beta.sd^2)
+#'  "misID.mu": a list vector, each entry gives normal prior means for misID regression coefficients for the corresponding model in Meta$misID.mat (can be set to null if no misID)
+#'  "misID.sd": a list vector, each entry gives normal prior sd for misID regression coefficients for the corresponding model in Meta$misID.mat (can be set to null if no misID)
 #' @param Meta	A list object giving a number of other features of the dataset, including:
 #' 	"n.transects"	Number of transects
 #'  "n.species"     Number of species
@@ -56,7 +59,7 @@
 #'  "Bin.length"	vector giving relative size of distance bins
 #'  "n.ind.cov" 	Number of individual covariates (distance is not included in this total, but group size is)
 #'  "Cov.prior.pdf" character vector giving the probability density function associated with each individual covariate (type ? hierarchical_DS for more info)
-#'  "Cov.prior.parms"	(n x n.ind.cov) matrix providing "pseudo-prior" parameters for individual covarate distributions (only the first row used if a signle parameter distribution)
+#'  "Cov.prior.parms"	An (n.species X n X n.ind.cov) array providing "pseudo-prior" parameters for individual covarate distributions (only the first row used if a signle parameter distribution)
 #'  "Cov.prior.fixed" indicator vector for whether parameters of each covariate distribution should be fixed within estimation routine
 #'  "Cov.prior.n" 	(#species X #covariates) Matrix giving number of parameters in each covariate pdf 
 #'  "point.ind"		Indicator for whether point independence assumed (if no, then no correlation modeled b/w multiple observers as function of distance)
@@ -201,7 +204,7 @@ mcmc_ds<-function(Par,Data,cur.iter,adapt,Control,DM.hab,DM.det,Q,Prior.pars,Met
 	#initialize random effect matrices for individual covariates if required
 	if(sum(1-Meta$Cov.prior.fixed)>0)RE.cov=array(0,dim=c(Meta$n.species,Meta$n.transects,max(Meta$M),Meta$n.ind.cov))
 		
-	PROFILE=TRUE
+	PROFILE=FALSE
 	st <- Sys.time()
 	##################################################
 	############   Begin MCMC Algorithm ##############
@@ -245,7 +248,7 @@ mcmc_ds<-function(Par,Data,cur.iter,adapt,Control,DM.hab,DM.det,Q,Prior.pars,Met
 					Par$Eta[isp,]=Par$Eta[isp,]-mean(Par$Eta[isp,])  #centering
 					
 					#update tau_eta  (precision of spatial process)
-					Par$tau.eta[isp] <- rgamma(1, (Meta$S-1)/2 + Prior.pars$a.eta, as.numeric(crossprod(Par$Eta[isp,], Q %*% Par$Eta[isp,])/2) + Prior.pars$b.eta)
+					Par$tau.eta[isp] <- rgamma(1, (Meta$S-1)*0.5 + Prior.pars$a.eta, as.numeric(crossprod(Par$Eta[isp,], Q %*% Par$Eta[isp,])*0.5) + Prior.pars$b.eta)
 				}
 				else{
 					#Update Theta
@@ -256,7 +259,7 @@ mcmc_ds<-function(Par,Data,cur.iter,adapt,Control,DM.hab,DM.det,Q,Prior.pars,Met
 					Par$Eta[isp,]=as.numeric(L.t[[isp]]%*%Theta)
 					
 					#update tau.eta
-					Par$tau.eta[isp] <- rgamma(1, N.theta[isp]/2 + Prior.pars$a.eta, as.numeric(crossprod(Theta, Qt[[isp]] %*% Theta)/2) + Prior.pars$b.eta)
+					Par$tau.eta[isp] <- rgamma(1, N.theta[isp]*0.5 + Prior.pars$a.eta, as.numeric(crossprod(Theta, Qt[[isp]] %*% Theta)*0.5) + Prior.pars$b.eta)
 				}
 			}
 			if(PROFILE==TRUE){
@@ -267,7 +270,7 @@ mcmc_ds<-function(Par,Data,cur.iter,adapt,Control,DM.hab,DM.det,Q,Prior.pars,Met
 			Mu=DM.hab[[isp]]%*%Hab+Par$Eta[isp,]
 			if(Meta$fix.tau.nu==FALSE){
 				Diff=Par$Nu[isp,Sampled]-Mu[Sampled]
-				Par$tau.nu[isp] <- rgamma(1,n.unique/2 + Prior.pars$a.nu, as.numeric(crossprod(Diff,Diff))/2 + Prior.pars$b.nu)
+				Par$tau.nu[isp] <- rgamma(1,n.unique/2 + Prior.pars$a.nu, as.numeric(crossprod(Diff,Diff))*0.5 + Prior.pars$b.nu)
 			}
 			if(PROFILE==TRUE){
 				cat(paste("Tau nu: ", (Sys.time()-st),'\n'))
@@ -495,7 +498,7 @@ mcmc_ds<-function(Par,Data,cur.iter,adapt,Control,DM.hab,DM.det,Q,Prior.pars,Met
 				ExpY.prop=X%*%Par$det
 				Obs.species=Cur.dat[,3]
 				#abundance component
-				mh=log(Lambda.trans[prop.sp,itrans])+log(G.obs[isp,itrans])-log(Lambda.trans[isp,itrans])-log(G.obs[prop.sp,itrans]+1)  
+				mh=log(Lambda.trans[prop.sp,itrans])+log(G.obs[isp,itrans])-log(Lambda.trans[isp,itrans])-log(G.obs[prop.sp,itrans]+1)  #verified 4/11/12
 				#detection (Y-tilde) component
 				if(Meta$n.Observers[itrans]==1){
 					Y.tilde.llik.old=dnorm(Cur.Y.tilde,ExpY,1,log=TRUE)
@@ -512,8 +515,8 @@ mcmc_ds<-function(Par,Data,cur.iter,adapt,Control,DM.hab,DM.det,Q,Prior.pars,Met
 					if(Meta$Cov.prior.pdf[isp,icov]=='poisson_ln' | Meta$Cov.prior.pdf[isp,icov]=='pois1_ln')cur.RE=RE.cov[c(isp,prop.sp),itrans,iind*Meta$n.Observers[itrans],icov]
 					else cur.RE=c(0,0)
 					cur.cov=Cur.dat[1,Meta$dist.pl+icov]
-					mh=mh+switch_pdf(x=cur.cov,pdf=Meta$Cov.prior.pdf[isp,icov],cur.par=Meta$Cov.prior.parms[prop.sp,1:Meta$Cov.prior.n[isp,icov],icov],RE=cur.RE)								
-					mh=mh-switch_pdf(x=cur.cov,pdf=Meta$Cov.prior.pdf[isp,icov],cur.par=Meta$Cov.prior.parms[isp,1:Meta$Cov.prior.n[isp,icov],icov],RE=cur.RE)
+					mh=mh+switch_pdf(x=cur.cov,pdf=Meta$Cov.prior.pdf[prop.sp,icov],cur.par=Par$Cov.par[prop.sp,,icov],RE=cur.RE)								
+					mh=mh-switch_pdf(x=cur.cov,pdf=Meta$Cov.prior.pdf[isp,icov],cur.par=Par$Cov.par[isp,,icov],RE=cur.RE)
 				}							
 				#misID component
 				#old species
@@ -530,10 +533,9 @@ mcmc_ds<-function(Par,Data,cur.iter,adapt,Control,DM.hab,DM.det,Q,Prior.pars,Met
 				for(iobs in 1:Meta$n.Observers[itrans])if(Obs.species[iobs]>0)mh=mh-log(Conf[iobs,Obs.species[iobs]])
 				#new species
 				Conf=matrix(0,Meta$n.Observers[itrans],ncol(Meta$misID.mat))
-				Cur.dat[,4]=prop.sp
 				for(ipl in 1:ncol(Meta$misID.mat)){
 					if(Meta$misID.mat[prop.sp,ipl]>0){
-						DM=get_mod_matrix(Cur.dat=Cur.dat,stacked.names=Meta$stacked.names,factor.ind=Meta$factor.ind,Det.formula=Meta$misID.models[[Meta$misID.mat[prop.sp,ipl]]],Levels=Meta$Levels)
+						DM=get_mod_matrix(Cur.dat=New.dat,stacked.names=Meta$stacked.names,factor.ind=Meta$factor.ind,Det.formula=Meta$misID.models[[Meta$misID.mat[prop.sp,ipl]]],Levels=Meta$Levels)
 						Conf[,ipl]=exp(DM%*%Par$MisID[Meta$misID.mat[prop.sp,ipl],1:ncol(DM)])
 					}
 				}
@@ -547,7 +549,7 @@ mcmc_ds<-function(Par,Data,cur.iter,adapt,Control,DM.hab,DM.det,Q,Prior.pars,Met
 						#cat(paste("species changed; ind ",iind))
 						#1) add data to new target species' data aug matrix
 						Data[prop.sp,itrans,(G.obs[prop.sp,itrans]*Meta$n.Observers[itrans]+Meta$n.Observers[itrans]+1):Meta$M[prop.sp,itrans],]=Data[prop.sp,itrans,(G.obs[prop.sp,itrans]*Meta$n.Observers[itrans]+1):(Meta$M[prop.sp,itrans]-Meta$n.Observers[itrans]),]	
-						Data[prop.sp,itrans,G.obs[prop.sp,itrans]*Meta$n.Observers[itrans]+1:Meta$n.Observers[itrans],]=Cur.dat
+						Data[prop.sp,itrans,G.obs[prop.sp,itrans]*Meta$n.Observers[itrans]+1:Meta$n.Observers[itrans],]=New.dat
 						#2) remove entry from old species; shift data aug array down
 						Data[isp,itrans,((iind-1)*(Meta$n.Observers[itrans])+1):(Meta$M[isp,itrans]-Meta$n.Observers[itrans]),]=Data[isp,itrans,((iind-1)*(Meta$n.Observers[itrans])+1+Meta$n.Observers[itrans]):Meta$M[isp,itrans],]
 						#3) add Y.tilde to new target species Y.tilde matrix
@@ -606,7 +608,7 @@ mcmc_ds<-function(Par,Data,cur.iter,adapt,Control,DM.hab,DM.det,Q,Prior.pars,Met
 								Conf=XBeta/(1+apply(XBeta,1,'sum'))
 								Conf[,which(Meta$misID.mat[isp,]==-1)]=1-apply(Conf,1,'sum')
 								logL.new=sum(log(Conf[(Cur.dat[,3]-1)*nrow(Cur.dat)+Row.num]))  #categorical distribution
-								if(runif(1)<exp(logL.new-logL.old+dnorm(beta.star,0,100,log=1)-dnorm(beta.old,0,100,log=1))){
+								if(runif(1)<exp(logL.new-logL.old+dnorm(beta.star,Prior.pars$misID.mu[[Meta$misID.mat[isp,ipl]]][ipar],Prior.pars$misID.sd[[Meta$misID.mat[isp,ipl]]][ipar],log=1)-dnorm(beta.old,Prior.pars$misID.mu[[Meta$misID.mat[isp,ipl]]][ipar],Prior.pars$misID.sd[[Meta$misID.mat[isp,ipl]]][ipar],log=1))){
 									Par$MisID[Meta$misID.mat[isp,ipl],ipar]=beta.star
 									Accept$MisID[[Meta$misID.mat[isp,ipl],ipar]]=Accept$MisID[[Meta$misID.mat[isp,ipl],ipar]]+1
 									logL.old=logL.new
