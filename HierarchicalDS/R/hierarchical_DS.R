@@ -394,6 +394,9 @@ hierarchical_DS<-function(Dat,Adj,Area.hab=1,Mapping,Area.trans,Observers,Bin.le
 	Q=-Adj
 	diag(Q)=apply(Adj,2,'sum')
 	Q=Matrix(Q)	
+	
+	G.transect[1,]=Out1$True.G
+	n.Records[1,]=2*G.transect[1,]
 
 	Meta=list(n.transects=n.transects,n.species=n.species,S=S,spat.ind=spat.ind,Area.hab=Area.hab,Area.trans=Area.trans,
 			Adj=Adj,Mapping=Mapping,Covered.area=Covered.area,n.Observers=n.Observers,M=M,stacked.names=stacked.names,
