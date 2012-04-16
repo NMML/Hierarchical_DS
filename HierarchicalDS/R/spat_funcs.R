@@ -196,7 +196,7 @@ generate_inits_misID<-function(DM.hab,DM.det,N.hab.par,G.transect,Area.trans,Are
 #' @keywords gradient, Langevin-Hastings
 #' @author Paul B. Conn
 log_lambda_gradient<-function(Mu,Nu,Sampled,Area,N,var.nu){
-	Grad=(Mu[Sampled]-Nu[Sampled])/var.nu+N-Area*exp(Mu[Sampled])
+	Grad=(Mu[Sampled]-Nu[Sampled])/var.nu+N-Area*exp(Nu[Sampled])
 	Grad 
 }
 
@@ -216,7 +216,7 @@ log_lambda_gradient<-function(Mu,Nu,Sampled,Area,N,var.nu){
 log_lambda_log_likelihood<-function(Log.lambda,DM,Beta,Eta=0,SD,N,Sampled,Area){
 	Pred.log.lam=(DM%*%Beta+Eta)[Sampled]	
 	logL=sum(dnorm(Log.lambda,Pred.log.lam,SD,log=1)) #normal component
-	logL=logL+sum(N*(Log.lambda+log(Area))-Area*exp(Log.lambda))
+	logL=logL+sum(N*Log.lambda-Area*exp(Log.lambda))
 	return(logL)
 } 	
 
