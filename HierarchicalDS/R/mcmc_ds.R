@@ -223,25 +223,35 @@ mcmc_ds<-function(Par,Data,cur.iter,adapt,Control,DM.hab,DM.det,Q,Prior.pars,Met
 			for(i in 1:Meta$n.transects)G.sampled[Sampled==Meta$Mapping[i]]=G.sampled[Sampled==Meta$Mapping[i]]+Meta$G.transect[isp,i]
 			Grad1=log_lambda_gradient(Mu=Mu,Nu=Par$Nu[isp,],Sampled=Sampled,Area=Sampled.area.by.strata,N=G.sampled,var.nu=1/Par$tau.nu[isp])
 			Prop=Par$Nu[isp,]
-			Prop[Sampled]=Par$Nu[isp,Sampled]+Control$MH.nu[isp]^2*0.5*Grad1+Control$MH.nu[isp]*rnorm(n.unique)
+			Prop[Sampled]=Prop[Sampled]+Control$MH.nu[isp]^2*0.5*Grad1+Control$MH.nu[isp]*rnorm(n.unique)
+			#Prop[Sampled]=Prop[Sampled]+Control$MH.nu[isp]*rnorm(n.unique)
 			new.post=log_lambda_log_likelihood(Log.lambda=Prop[Sampled],DM=DM.hab[[isp]],Beta=Hab,SD=sqrt(1/Par$tau.nu[isp]),N=G.sampled,Sampled=Sampled,Area=Sampled.area.by.strata)
 			old.post=log_lambda_log_likelihood(Log.lambda=Par$Nu[isp,Sampled],DM=DM.hab[[isp]],Beta=Hab,SD=sqrt(1/Par$tau.nu[isp]),N=G.sampled,Sampled=Sampled,Area=Sampled.area.by.strata)
 			Grad2=log_lambda_gradient(Mu=Mu,Nu=Prop,Sampled=Sampled,Area=Sampled.area.by.strata,N=G.sampled,var.nu=1/Par$tau.nu[isp])
 			diff1=as.vector(Par$Nu[isp,Sampled]-Prop[Sampled]-0.5*Control$MH.nu[isp]^2*Grad2)	
 			diff2=as.vector(Prop[Sampled]-Par$Nu[isp,Sampled]-0.5*Control$MH.nu[isp]^2*Grad1)
-			log.jump=0.5/Control$MH.nu[isp]^2*(sqrt(crossprod(diff1,diff1))-sqrt(crossprod(diff2,diff2))) #ratio of jumping distributions using e.g. Robert and Casella 2004 p. 319	
-			#cat(paste("\n iter=",iiter," new=",new.post," old=",old.post," jump=",log.jump))
+			
+			log.jump=0.5/Control$MH.nu[isp]*(crossprod(diff1)-crossprod(diff2))
+			#log.jump=0
+			#log.jump=0.5/Control$MH.nu[isp]^2*(sqrt(crossprod(diff1,diff1))-sqrt(crossprod(diff2,diff2))) #ratio of jumping distributions using e.g. Robert and Casella 2004 p. 319	
+			if((iiter%%100)==0)cat(paste("\n iter=",iiter," new=",new.post," old=",old.post," jump=",log.jump))
 			if(runif(1)<exp(new.post-old.post+log.jump)){
 				Par$Nu[isp,]=Prop
 				Accept$Nu[isp]=Accept$Nu[isp]+1	
 			}
-			#2) simulate nu for areas not sampled
+#			#2) simulate nu for areas not sampled
+#			Prop=Par$Nu[isp,]
 #			for(ipar in 1:n.unique){
-#				cur=Par$Nu[isp,Sampled[ipar]]
-#				prop=cur+runif(1,-1,1)
-#				old.logL=dnorm(cur,Mu[Sampled[ipar]],sqrt(1/Par$tau.nu[isp]),log=TRUE)+dpois(Meta$G.transect[1,ipar],0.25*exp(cur),log=1)
-#				new.logL=dnorm(prop,Mu[Sampled[ipar]],sqrt(1/Par$tau.nu[isp]),log=TRUE)+dpois(Meta$G.transect[1,ipar],0.25*exp(prop),log=1)
-#				if(runif(1)<exp(new.logL-old.logL))Par$Nu[isp,Sampled[ipar]]=prop
+#				#cur=Par$Nu[isp,Sampled[ipar]]
+#				#prop=cur+runif(1,-1,1)
+#				Prop[Sampled[ipar]]=Par$Nu[isp,Sampled[ipar]]+runif(1,-1,1)
+#				new.logL=log_lambda_log_likelihood(Log.lambda=Prop[Sampled],DM=DM.hab[[isp]],Beta=Hab,SD=sqrt(1/Par$tau.nu[isp]),N=G.sampled,Sampled=Sampled,Area=Sampled.area.by.strata)
+#				old.logL=log_lambda_log_likelihood(Log.lambda=Par$Nu[isp,Sampled],DM=DM.hab[[isp]],Beta=Hab,SD=sqrt(1/Par$tau.nu[isp]),N=G.sampled,Sampled=Sampled,Area=Sampled.area.by.strata)
+#				#old.logL=dnorm(cur,Mu[Sampled[ipar]],sqrt(1/Par$tau.nu[isp]),log=TRUE)+dpois(Meta$G.transect[1,ipar],0.25*exp(cur),log=TRUE)
+#				#new.logL=dnorm(prop,Mu[Sampled[ipar]],sqrt(1/Par$tau.nu[isp]),log=TRUE)+dpois(Meta$G.transect[1,ipar],0.25*exp(prop),log=TRUE)
+#				#if(runif(1)<exp(new.logL-old.logL))Par$Nu[isp,Sampled[ipar]]=prop
+#				if(runif(1)<exp(new.logL-old.logL))Par$Nu[isp,Sampled[ipar]]=Prop[Sampled[ipar]]
+#				else Prop[Sampled[ipar]]=Par$Nu[isp,Sampled[ipar]]
 #			}
 			Par$Nu[isp,-Sampled]=rnorm(Meta$S-n.unique,Mu[-Sampled],1/sqrt(Par$tau.nu[isp]))
 		
