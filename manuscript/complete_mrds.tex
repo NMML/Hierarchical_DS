@@ -14,6 +14,7 @@
 \usepackage{amsmath}
 % amssymb package, useful for mathematical symbols
 \usepackage{amssymb}
+\usepackage{url}
 
 % graphicx package, useful for including eps and pdf graphics
 % include graphics with the command \includegraphics
@@ -93,7 +94,7 @@ Paul B. Conn $^{1,\ast}$,
 Jeffrey L. Laake $^{1}$,
 Devin S. Johnson$^{1}$,
 \\
-{\bf{1}} NOAA National Marine Mammal Laboratory, Alaska Fisheries Science Center,
+{\bf{1}} NOAA-NMFS National Marine Mammal Laboratory, Alaska Fisheries Science Center,
 7600 Sand Point Way NE, Seattle, WA, 98115 U.S.A.
 \\
 $\ast$ E-mail: paul.conn@noaa.gov
@@ -101,7 +102,7 @@ $\ast$ E-mail: paul.conn@noaa.gov
 
 % Please keep the abstract between 250 and 300 words
 \section*{Abstract}
-Ecologists often use multiple observer transect surveys to census animal populations.  In addition to animal counts, these surveys produce sequences of detections and non-detections for each observer.  When combined with additional data (i.e. covariates such as distance from the transect line), these sequences provide the additional information to estimate absolute abundance when detectability is less than one.  Although existing analysis approaches for such data have proven extremely useful, they have some limitations.  For instance, it is difficult to extrapolate from observed areas to unobserved areas unless a rigorous sampling design is adhered to; it is also difficult to share information across spatial and temporal domains or to accommodate habitat-abundance relationships.  In this paper, we introduce a hierarchical modeling framework for multiple observer line transects that removes these limitations.  In particular, abundance intensities can be modeled as a function of habitat covariates, making it easier to extrapolate to unsampled areas.  Our approach relies on a complete data representation of state space, where unobserved animals and their covariates are modeled using a reversible jump Markov chain Monte Carlo algorithm.  Observer detections are modeled via a bivariate normal distribution on the probit scale, with dependence induced by a distance-dependent correlation parameter.  We illustrate performance of our approach with simulated data and on a known population of golf tees.  In both cases, we show that our hierarchical modeling approach yields accurate inference about abundance and related parameters.  In addition, we obtain accurate inference about population-level covariates (e.g. group size), which are not estimable from traditional transect analyses.  We recommend that ecologists consider using hierarchical models when analyzing multiple-observer transect data, especially when it is difficult to rigorously follow pre-specified sampling designs.  We provide a new R package, {\tt HierarchicalDS}, to facilitate the building and fitting of these models.
+Ecologists often use multiple observer transect surveys to census animal populations.  In addition to animal counts, these surveys produce sequences of detections and non-detections for each observer.  When combined with additional data (i.e. covariates such as distance from the transect line), these sequences provide the additional information to estimate absolute abundance when detectability is less than one.  Although existing analysis approaches for such data have proven extremely useful, they have some limitations.  For instance, it is difficult to extrapolate from observed areas to unobserved areas unless a rigorous sampling design is adhered to; it is also difficult to share information across spatial and temporal domains or to accommodate habitat-abundance relationships.  In this paper, we introduce a hierarchical modeling framework for multiple observer line transects that removes these limitations.  In particular, abundance intensities can be modeled as a function of habitat covariates, making it easier to extrapolate to unsampled areas.  Our approach relies on a complete data representation of state space, where unobserved animals and their covariates are modeled using a reversible jump Markov chain Monte Carlo algorithm.  Observer detections are modeled via a bivariate normal distribution on the probit scale, with dependence induced by a distance-dependent correlation parameter.  We illustrate performance of our approach with simulated data and on a known population of golf tees.  In both cases, we show that our hierarchical modeling approach yields accurate inference about abundance and related parameters.  In addition, we obtain accurate inference about population-level covariates (e.g. group size), which are not estimable from traditional transect analyses.  We recommend that ecologists consider using hierarchical models when analyzing multiple-observer transect data, especially when it is difficult to rigorously follow pre-specified sampling designs.  We provide a new R package, {\tt hierarchicalDS}, to facilitate the building and fitting of these models.
 
 % Please keep the Author Summary between 150 and 200 words
 % Use first person. PLoS ONE authors please skip this step.
@@ -217,13 +218,13 @@ Some covariates thought to influence detection probability are collected at the 
 [g(\theta,\epsilon_{ijk})],
 \label{eq:cov.dist}
 \end{equation}
-where $g()$ specifies an arbitrary function, $\theta$ gives hyper-priors, and $\epsilon_{ijk}$ specifies a random effect.  We have implemented a number of such distributions in our accompanying R package, {\tt HierarchicalDS}.  For instance, the user can choose $[g(\theta,\epsilon_{ijk})]$ to be a uniform, multinomial, Poisson, zero-truncated Poisson, overdispersed Poisson, or overdispersed zero-truncated Poisson distribution.  The overdispersed versions of the Poisson distribution are modeled as in \cite{McClintockEtAl2009}; namely
+where $g()$ specifies an arbitrary function, $\theta$ gives hyper-priors, and $\epsilon_{ijk}$ specifies a random effect.  We have implemented a number of such distributions in our accompanying R package, {\tt hierarchicalDS}.  For instance, the user can choose $[g(\theta,\epsilon_{ijk})]$ to be a uniform, multinomial, Poisson, zero-truncated Poisson, overdispersed Poisson, or overdispersed zero-truncated Poisson distribution.  The overdispersed versions of the Poisson distribution are modeled as in \cite{McClintockEtAl2009}; namely
 $$
 Z_{ijk} \sim {\rm Poisson}(\exp(\mu+\sigma \epsilon_{ijk})),
 $$
 where $\epsilon_{ijk} \sim {\rm Normal}(0,1)$ and $\mu$ and $\sigma$ are parameters to be estimated.
 The zero-truncated versions of the Poisson distribution are important for modeling covariates such as group size, which are by definition $\ge 1$ \cite{Royle2008}.
-One can also choose to fix the parameters of these distributions, or to specify hyper-prior distributions.  For further information, see Dataset S1.
+One can also choose to fix the parameters of these distributions, or to specify hyper-prior distributions.  For further information, see accompanying R package.
 
 \subsubsection*{Process model}
 
@@ -316,11 +317,11 @@ which is just the observation model (e.g. Eq. \ref{eq:obs.mod}) multiplied by th
 
 For groups $G_j+1,G_j+2, \hdots,M$ (i.e., ``pseudo-animals" not in the population), we simulate covariates directly from Eq. \ref{eq:cov.dist}.  These distributions are used in place of the pseudo-prior distributions suggested by Durban and Elston \cite{DurbanElston2005}.  The difference between our approaches is that in the present work we obtain posterior samples of the parameters specified in  $g()$ (e.g., the parameters describing the underlying covariate distribution), while Durban and Elston fix these parameters.  Simulations (see below) suggest that this approach results in estimates with reasonable properties, and also bypasses the need to tediously tune pseudo-prior distributions.  Assuming random placement of transect lines, we selected a uniform distribution a priori to simulate pseudo-animal distances).
 
-Estimation of remaining model parameters (conditional on a set level of abundance)  proceeded by cyclical sampling of model parameters from their full conditional distributions \cite{GelmanEtAl2004}.  In particular, we employed a combination of Gibbs, Metropolis-Hastings, and Langevin-Hastings \cite{RobertCasella2004} steps for posterior simulation.  For Metropols-Hastings steps, candidate parameter values were sampled from uniform distributions centered at the previous iterations parameter value and with a range chosen to achieve an acceptance rate of 30-40\% as suggested by Gelman Et Al. \cite{GelmanEtAl2004}.  For Langevin-Hastings steps, proposal vectors depended on the parameter vector at the previous iteration, as well as the gradient of the joint full conditional distribution evaluated at the current set of parameter values.  For further details, see Text S1.
+Estimation of remaining model parameters (conditional on a set level of abundance)  proceeded by cyclical sampling of model parameters from their full conditional distributions \cite{GelmanEtAl2004}.  In particular, we employed a combination of Gibbs and Metropolis-Hastings steps for posterior simulation.  For Metropols-Hastings steps, candidate parameter values were sampled from uniform distributions centered at the previous iterations parameter value and with a range chosen to achieve an acceptance rate of 30-40\% as suggested by Gelman Et Al. \cite{GelmanEtAl2004}.  For further details, see Text S1.
 
 \subsubsection*{Computing}
 
-We developed generalized computing code to conduct MCMC estimation, which we implemented in the R programming environment \cite{RTeam2007}.  This code has been incorporated into the R package, {\tt HierarchicalDS}.  The package, which includes code, help files, and an example analysis, is available as Dataset S1, and will be uploaded to CRAN upon manuscript acceptance.
+We developed generalized computing code to conduct MCMC estimation, which we implemented in the R programming environment \cite{RTeam2007}.  This code has been incorporated into the R package, {\tt HierarchicalDS}.  The package, which includes code, help files, and an example analysis, is currently available at \\ \url{https://github.com/NMML/Hierarchical_DS}, and will be uploaded to CRAN upon manuscript acceptance.
 
 
 \section*{Examples}

@@ -59,7 +59,7 @@
 #'	"thin": if specified, how many iterations to skip between recorded posterior samples;
 #'	"adapt": if adapt==TRUE, this gives the number of additional MCMC iterations should be performed to adapt MCMC proposals to optimal ranges prior to final MCMC run; 
 #'	"MH.cor": Metropolis-hastings tuning parameter for updating the correlation parameter (if point.ind==TRUE);
-#'	"MH.nu": MH tuning parameter for Nu parameters (Langevin-Hastings multivariate update);
+#'	"MH.nu": MH tuning parameters for Nu parameters (dimension = # species X # of unique strata sampled)
 #'	"MH.beta": A matrix of tuning parameters for betas of the abundance process (nrows=number of species, ncol = max number of columns of habitat DM);
 #'	"RJ.N"}{A vector giving the maximum number of additions and deletions proposed in an iteration of the RJMCMC algorithm for each transect
 #' @param Inits	An (optional) list object providing initial values for model parameters, with the following slots:
@@ -137,7 +137,7 @@
 #' #set initial values for M (max number of groups allowed in a given transect)
 #' M=t(Out$G.true*3)
 #' M[which(M<20)]=20
-#' Control=list(iter=30100,burnin=100,thin=10,MH.cor=0.2,MH.nu=c(.01),MH.misID=NULL,RJ.N=matrix(rep(5,S*n.species),n.species,S),adapt=1000)
+#' Control=list(iter=30100,burnin=100,thin=10,MH.cor=0.2,MH.nu=matrix(.1,n.species,n.transects),MH.misID=NULL,RJ.N=matrix(rep(5,S*n.species),n.species,S),adapt=1000)
 #' #provide initial values for habitat parameters to improve stability
 #' hab=matrix(0,n.species,2) #covariates are intercept, index, 
 #' hab[1,]=c(log(20),0)
@@ -180,7 +180,7 @@ hierarchical_DS<-function(Dat,Adj,Area.hab=1,Mapping,Area.trans,Observers,Bin.le
 	#By no means exhaustive checking to make sure input values are internally consistent
 	n.obs.max=ifelse(sum(is.na(Observers[2,]))==n.transects,1,2)
 	if(n.obs.max>2)cat("\n ERROR: Current max number of observers per transect is 2\n")
-	if(length(Control$MH.nu)!=n.species)cat("\n ERROR: Control$MH.nu does not have length = number of species \n")
+	if(nrow(Control$MH.nu)!=n.species)cat("\n ERROR: Control$MH.nu does not have # rows = number of species \n")
 	if(nrow(M)!=n.species)cat("\n ERROR: M does not have nrow = number of species \n")
 	if(ncol(M)!=n.transects)cat("\n ERROR: M does not have ncol = number of transects \n")	
 		

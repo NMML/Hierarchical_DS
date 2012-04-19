@@ -172,8 +172,8 @@ mcmc_ds<-function(Par,Data,cur.iter,adapt,Control,DM.hab,DM.det,Q,Prior.pars,Met
 	MCMC=list(MisID=array(0,dim=c(mcmc.length,dim(Par$MisID))),N.tot=matrix(0,Meta$n.species,mcmc.length),N=array(0,dim=c(Meta$n.species,mcmc.length,Meta$S)),G=array(0,dim=c(Meta$n.species,mcmc.length,Meta$S)),Hab=array(0,dim=c(Meta$n.species,mcmc.length,ncol(Par$hab))),Det=data.frame(matrix(0,mcmc.length,length(Par$det))),cor=rep(0,mcmc.length),tau.eta=matrix(0,Meta$n.species,mcmc.length),tau.nu=matrix(0,Meta$n.species,mcmc.length),Cov.par=array(0,dim=c(Meta$n.species,mcmc.length,length(Par$Cov.par[1,,]))))
 	#colnames(MCMC$Hab)=colnames(DM.hab)
 	colnames(MCMC$Det)=colnames(DM.det)
-	if(Meta$misID==TRUE)Accept=list(cor=0,N=matrix(0,Meta$n.species,Meta$n.transects),Nu=rep(0,Meta$n.species),MisID=matrix(0,dim(Par$MisID)[1],dim(Par$MisID)[2]))
-	if(Meta$misID==FALSE)Accept=list(cor=0,N=matrix(0,Meta$n.species,Meta$n.transects),Nu=rep(0,Meta$n.species))
+	if(Meta$misID==TRUE)Accept=list(cor=0,N=matrix(0,Meta$n.species,Meta$n.transects),Nu=matrix(0,Meta$n.species,n.unique),MisID=matrix(0,dim(Par$MisID)[1],dim(Par$MisID)[2]))
+	if(Meta$misID==FALSE)Accept=list(cor=0,N=matrix(0,Meta$n.species,Meta$n.transects),Nu=matrix(0,Meta$n.species,n.unique))
 	Pred.N=array(0,dim=c(Meta$n.species,mcmc.length,Meta$n.transects))
 	Obs.N=Pred.N
 
@@ -221,20 +221,16 @@ mcmc_ds<-function(Par,Data,cur.iter,adapt,Control,DM.hab,DM.det,Q,Prior.pars,Met
 			Mu=DM.hab[[isp]]%*%Hab+Eta
 			G.sampled=rep(0,n.unique) #total number of groups currently in each sampled strata
 			for(i in 1:Meta$n.transects)G.sampled[Sampled==Meta$Mapping[i]]=G.sampled[Sampled==Meta$Mapping[i]]+Meta$G.transect[isp,i]
-			Grad1=log_lambda_gradient(Mu=Mu,Nu=Par$Nu[isp,],Sampled=Sampled,Area=Sampled.area.by.strata,N=G.sampled,var.nu=1/Par$tau.nu[isp])
-			Prop=Par$Nu[isp,]
-			Prop[Sampled]=Par$Nu[isp,Sampled]+Control$MH.nu[isp]^2*0.5*Grad1+Control$MH.nu[isp]*rnorm(n.unique)
-			new.post=log_lambda_log_likelihood(Log.lambda=Prop[Sampled],DM=DM.hab[[isp]],Beta=Hab,SD=sqrt(1/Par$tau.nu[isp]),N=G.sampled,Sampled=Sampled,Area=Sampled.area.by.strata)
-			old.post=log_lambda_log_likelihood(Log.lambda=Par$Nu[isp,Sampled],DM=DM.hab[[isp]],Beta=Hab,SD=sqrt(1/Par$tau.nu[isp]),N=G.sampled,Sampled=Sampled,Area=Sampled.area.by.strata)
-			Grad2=log_lambda_gradient(Mu=Mu,Nu=Prop,Sampled=Sampled,Area=Sampled.area.by.strata,N=G.sampled,var.nu=1/Par$tau.nu[isp])
-			diff1=as.vector(Par$Nu[isp,Sampled]-Prop[Sampled]-0.5*Control$MH.nu[isp]^2*Grad2)	
-			diff2=as.vector(Prop[Sampled]-Par$Nu[isp,Sampled]-0.5*Control$MH.nu[isp]^2*Grad1)
-			log.jump=0.5/Control$MH.nu[isp]^2*(sqrt(crossprod(diff1,diff1))-sqrt(crossprod(diff2,diff2))) #ratio of jumping distributions using e.g. Robert and Casella 2004 p. 319	
-			#cat(paste("\n iter=",iiter," new=",new.post," old=",old.post," jump=",log.jump))
-			if(runif(1)<exp(new.post-old.post+log.jump)){
-				Par$Nu[isp,]=Prop
-				Accept$Nu[isp]=Accept$Nu[isp]+1	
+			for(i in 1:n.unique){
+				prop=Par$Nu[isp,Sampled[i]]+runif(1,-Control$MH.nu[isp,i],Control$MH.nu[isp,i])				
+				old.post=dnorm(Par$Nu[isp,Sampled[i]],Mu[Sampled[i]],1/sqrt(Par$tau.nu[isp]),log=TRUE)+dpois(G.sampled[i],Sampled.area.by.strata[i]*exp(Par$Nu[isp,Sampled[i]]),log=TRUE)
+				new.post=dnorm(prop,Mu[Sampled[i]],1/sqrt(Par$tau.nu[isp]),log=TRUE)+dpois(G.sampled[i],Sampled.area.by.strata[i]*exp(prop),log=TRUE)
+				if(runif(1)<exp(new.post-old.post)){
+					Par$Nu[isp,Sampled[i]]=prop
+					Accept$Nu[isp,i]=Accept$Nu[isp,i]+1
+				}
 			}
+			
 			#2) simulate nu for areas not sampled
 			Par$Nu[isp,-Sampled]=rnorm(Meta$S-n.unique,Mu[-Sampled],1/sqrt(Par$tau.nu[isp]))
 		
@@ -808,8 +804,9 @@ mcmc_ds<-function(Par,Data,cur.iter,adapt,Control,DM.hab,DM.det,Q,Prior.pars,Met
 					}
 				}
 				for(ipar in 1:Meta$n.species){
-					if(Accept$Nu[ipar]<55)Control$MH.nu[ipar]=Control$MH.nu[ipar]*.95
-					if(Accept$Nu[ipar]>60)Control$MH.nu[ipar]=Control$MH.nu[ipar]*1.053
+					for(i in 1:n.unique)
+					if(Accept$Nu[ipar,i]<30)Control$MH.nu[ipar,i]=Control$MH.nu[ipar,i]*.95
+					if(Accept$Nu[ipar,i]>40)Control$MH.nu[ipar,i]=Control$MH.nu[ipar,i]*1.053
 				}
 				for(ipar in 1:length(Accept$N)){
 					if(Accept$N[ipar]<30)Control$RJ.N[ipar]=max(1,Control$RJ.N[ipar]-1)

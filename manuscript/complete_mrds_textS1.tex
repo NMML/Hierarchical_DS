@@ -131,12 +131,11 @@ We used different strategies for updating $\nu_s$ depending on whether or not sa
 $$
 \nu_s \sim {\rm Normal}([{\bf X}^{\rm hab} \boldsymbol{\beta}^{\rm hab}]_s,\tau_\nu^{-1}).
 $$
-We simultaneously updated the remaining elements of $\boldsymbol{\nu}$ using
-a Langevin-Hastings algorithm \cite{RobertCasella2004}.  The Langevin-Hastings algorithm utilizes the numerical gradient of the full conditional distribution to make more efficient proposals, which are accepted or rejected based on a modified Metropolis ratio.  The full conditional distribution for $\boldsymbol{\nu}$ needed to perform Langevin-Hastings updates is given by
+We iteratively updated the remaining elements of $\boldsymbol{\nu}$ using
+Metropolis-Hastings step, with a target acceptance rate of 30-40\%.  The full conditional distribution for $\nu_s$ needed to perform Metropolis-Hastings updates for sampled cells is given by
 $$
-\left[ \boldsymbol{\nu} | \hdots \right] = \textrm{Normal}\left(\boldsymbol{\nu};{\bf X}^{\rm hab}\boldsymbol{\beta}^{\rm hab},\tau_\nu^{-1} {\bf I} \right) \prod_i \textrm{Poisson} \left( G_i; \exp(\nu_i) \right),
+\left[ \nu_s | \hdots \right] = \textrm{Normal}\left(\nu_s;[{\bf X}^{\rm hab}\boldsymbol{\beta}^{\rm hab}]_s,\tau_\nu^{-1} \right)\textrm{Poisson} \left( G_s; \exp(\nu_s) \right).
 $$
-where {\bf I} is an identity matrix.
 
 \subsection*{Sampling $\tau_\nu$}
 We directly sample $\tau_\nu$ may using

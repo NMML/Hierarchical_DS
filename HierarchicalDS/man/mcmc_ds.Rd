@@ -16,7 +16,9 @@
   giving the log of the abundance intensity for each
   strata; "G": a vector giving the number of groups of
   animals in each strata; "N": a vector giving the number
-  of animals in each strata}
+  of animals in each strata "Cov.par": an (n.species X n X
+  n.ind.cov) array holding parameters of individual
+  covariate distributions.}
 
   \item{Data}{A four dimensional array; the first dimension
   gives species, the second gives the transect, the third
@@ -68,7 +70,14 @@
   Gamma(a.nu,b.nu)) "b.nu": beta parameter for prior
   precision of overdispersion process (assumed
   Gamma(a.nu,b.nu)) "beta.sd": standard deviation for
-  regression coefficients (assumed Normal(0,beta.sd^2)}
+  regression coefficients (assumed Normal(0,beta.sd^2)
+  "misID.mu": a list vector, each entry gives normal prior
+  means for misID regression coefficients for the
+  corresponding model in Meta$misID.mat (can be set to null
+  if no misID) "misID.sd": a list vector, each entry gives
+  normal prior sd for misID regression coefficients for the
+  corresponding model in Meta$misID.mat (can be set to null
+  if no misID)}
 
   \item{Meta}{A list object giving a number of other
   features of the dataset, including: "n.transects" Number
@@ -105,11 +114,11 @@
   is) "Cov.prior.pdf" character vector giving the
   probability density function associated with each
   individual covariate (type ? hierarchical_DS for more
-  info) "Cov.prior.parms" (n x n.ind.cov) matrix providing
-  "pseudo-prior" parameters for individual covarate
-  distributions (only the first row used if a signle
-  parameter distribution) "Cov.prior.fixed" indicator
-  vector for whether parameters of each covariate
+  info) "Cov.prior.parms" An (n.species X n X n.ind.cov)
+  array providing "pseudo-prior" parameters for individual
+  covarate distributions (only the first row used if a
+  signle parameter distribution) "Cov.prior.fixed"
+  indicator vector for whether parameters of each covariate
   distribution should be fixed within estimation routine
   "Cov.prior.n" (#species X #covariates) Matrix giving
   number of parameters in each covariate pdf "point.ind"
