@@ -1,13 +1,13 @@
 #' script to process golf tee data and run MCMC estimation 
-#' @return see help for hierarchical_DS
+#' @return see help for hierarchicalDS
 #' @export
 #' @keywords golf tee data
 #' @author Paul B. Conn
 
-Tee.data<-read.table("c:/users/paul.conn/git/hierarchical_DS/allteesdata.txt")
+Tee.data<-read.table("c:/users/paul.conn/git/hierarchicalDS/allteesdata.txt")
 plot.data=TRUE
 if(plot.data){
-	setwd("/Users/paul.conn/git/hierarchical_DS/")
+	setwd("/Users/paul.conn/git/hierarchicalDS/")
 	gex.data=read.csv("gex.data.csv")
 	attach(gex.data)
 	I.obs=(rowSums(gex.data[,16:23])>0)
@@ -34,7 +34,7 @@ if(plot.data){
 set.seed(12345) #chain 1
 set.seed(12346)
 
-#1) format data for hierarchical_DS; remove unobserved tees
+#1) format data for hierarchicalDS; remove unobserved tees
 #note observations o10 correspond to observer group 1 and o11 corresponds to observer group 2
 n.transects=11
 n.species=2
@@ -72,7 +72,7 @@ Cov.prior.n=c(3,2)
 
 Control=list(iter=100100,burnin=100,thin=20,MH.cor=0.2,MH.nu=c(.01,.01),RJ.N=matrix(rep(3,n.transects*n.species),n.species,n.transects),adapt=1000)
 
-#Out=hierarchical_DS(Dat=Dat,Adj=1,Area.hab=1,Mapping=1,Area.trans=1,Observers=Observers,n.obs.cov=0,Hab.formula=~1,Det.formula=Det.formula,Cov.prior.pdf=Cov.prior.pdf,Cov.prior.parms=Cov.prior.parms,Cov.prior.fixed=Cov.prior.fixed,pol.eff=c(1:3),point.ind=TRUE,spat.ind=TRUE,grps=TRUE,M=500,Control=Control,adapt=TRUE,Prior.pars=Prior.pars)
+#Out=hierarchicalDS(Dat=Dat,Adj=1,Area.hab=1,Mapping=1,Area.trans=1,Observers=Observers,n.obs.cov=0,Hab.formula=~1,Det.formula=Det.formula,Cov.prior.pdf=Cov.prior.pdf,Cov.prior.parms=Cov.prior.parms,Cov.prior.fixed=Cov.prior.fixed,pol.eff=c(1:3),point.ind=TRUE,spat.ind=TRUE,grps=TRUE,M=500,Control=Control,adapt=TRUE,Prior.pars=Prior.pars)
 
 
 #for debugging, define everything beforehand
@@ -104,13 +104,13 @@ adapt=TRUE
 Prior.pars=list(a.eta=1,b.eta=.01,a.nu=1,b.nu=.01,beta.sd=c(10000,100)) #(1,.01) prior makes it closer to a uniform distribution near the origin
 Inits=list(tau.nu=c(100,100),hab=matrix(c(2,2.4,0,0),2,2)) #chain1
 adapt=TRUE
-Out=hierarchical_DS_misID(Dat=Dat,Adj=Adj,Area.hab=Area.hab,Mapping=Mapping,Area.trans=Area.trans,Observers=Observers,Bin.length=Bin.length,Hab.cov=Hab.cov,Obs.cov=Obs.cov,n.obs.cov=n.obs.cov,Hab.formula=Hab.formula,Det.formula=Det.formula,Cov.prior.pdf=Cov.prior.pdf,Cov.prior.parms=Cov.prior.parms,Cov.prior.fixed=Cov.prior.fixed,Cov.prior.n=Cov.prior.n,pol.eff=NULL,point.ind=TRUE,spat.ind=spat.ind,fix.tau.nu=fix.tau.nu,srr=srr,srr.tol=srr.tol,misID=misID,Inits=Inits,grps=grps,M=M,Control=Control,Levels=Levels,adapt=TRUE,Prior.pars=Prior.pars,misID.mat=misID.mat,misID.models=misID.models)
-#save(Out,file="c:/users/paul.conn/git/hierarchical_DS/Output/golf_tee2.Rdat")
+Out=hierarchicalDS_misID(Dat=Dat,Adj=Adj,Area.hab=Area.hab,Mapping=Mapping,Area.trans=Area.trans,Observers=Observers,Bin.length=Bin.length,Hab.cov=Hab.cov,Obs.cov=Obs.cov,n.obs.cov=n.obs.cov,Hab.formula=Hab.formula,Det.formula=Det.formula,Cov.prior.pdf=Cov.prior.pdf,Cov.prior.parms=Cov.prior.parms,Cov.prior.fixed=Cov.prior.fixed,Cov.prior.n=Cov.prior.n,pol.eff=NULL,point.ind=TRUE,spat.ind=spat.ind,fix.tau.nu=fix.tau.nu,srr=srr,srr.tol=srr.tol,misID=misID,Inits=Inits,grps=grps,M=M,Control=Control,Levels=Levels,adapt=TRUE,Prior.pars=Prior.pars,misID.mat=misID.mat,misID.models=misID.models)
+#save(Out,file="c:/users/paul.conn/git/hierarchicalDS/Output/golf_tee2.Rdat")
 
 #pull in data and plot
-load("c:/users/paul.conn/git/hierarchical_DS/Output/golf_tee1.Rdat")
+load("c:/users/paul.conn/git/hierarchicalDS/Output/golf_tee1.Rdat")
 Out1=Out
-load("c:/users/paul.conn/git/hierarchical_DS/Output/golf_tee2.Rdat")
+load("c:/users/paul.conn/git/hierarchicalDS/Output/golf_tee2.Rdat")
 par(mfrow=c(2,2))
 plot(Out$MCMC$N.tot[1,],type="l",col=1)
 lines(Out1$MCMC$N.tot[1,],type="l",col=2)
@@ -184,19 +184,42 @@ Cov.par.means.sp2=apply(Cov.par.sp2,2,'mean')
 
 Size.df=data.frame(matrix(0,20000+nrow(Tee.data),2))
 Size.df[,1]=as.character(Size.df[,1])
-Size.df[1:10000,1]="Predicted: green"
-Size.df[10001:20000,1]="Predicted; yellow"
-Size.df[20001:20250,1]="Empirical"
+Size.df[1:108,1]="Empirical: green"
+Size.df[109:10108,1]="Predicted: green"
+Size.df[10109:10250,1]="Empirical: yellow"
+Size.df[10251:20250,1]="Predicted: yellow"
 colnames(Size.df)=c("type","value")
-Size.df[1:10000,2]=1+rpois(10000,exp(Cov.par.means.sp1[1]+Cov.par.means.sp1[2]*rnorm(10000,0,1)))
-Size.df[10001:20000,2]=1+rpois(10000,exp(Cov.par.means.sp2[1]+Cov.par.means.sp2[2]*rnorm(10000,0,1)))
-Size.df[20001:20250,2]=Tee.data[,"size"]
+Size.df[1:108,2]=Tee.data[which(Tee.data[,"sex"]==0),"size"]
+Size.df[109:10108,2]=1+rpois(10000,exp(Cov.par.means.sp1[1]+Cov.par.means.sp1[2]*rnorm(10000,0,1)))
+Size.df[10109:10250,2]=Tee.data[which(Tee.data[,"sex"]==1),"size"]
+Size.df[10251:20250,2]=1+rpois(10000,exp(Cov.par.means.sp2[1]+Cov.par.means.sp2[2]*rnorm(10000,0,1)))
 Size.df=Size.df[Size.df[,2]<=12,]
 
-qplot(value,data=Size.df,geom="histogram",binwidth=1)+aes(y = ..density..)+
-		scale_y_continuous("Density")+scale_x_continuous("Group size")+opts(axis.text.y=theme_blank())+
+qplot(value,data=Size.df,geom="bar",binwidth=1)+aes(y = ..density..)+
+		scale_y_continuous("Density")+scale_x_continuous("Group size")+
+		#opts(axis.text.y=theme_blank())+
 		facet_grid(type~.)
 
+set.seed(12345)
+mass.emp.green=tabulate(Tee.data[which(Tee.data[,"sex"]==0),"size"])
+mass.emp.green=mass.emp.green/sum(mass.emp.green)
+mass.emp.yel=tabulate(Tee.data[which(Tee.data[,"sex"]==1),"size"])
+mass.emp.yel=mass.emp.yel/sum(mass.emp.yel)
+mass.post.green=tabulate(1+rpois(10000,exp(Cov.par.means.sp1[1]+Cov.par.means.sp1[2]*rnorm(10000,0,1))))
+mass.post.green=mass.post.green[1:12]
+mass.post.green=mass.post.green/sum(mass.post.green)
+mass.post.yel=tabulate(1+rpois(10000,exp(Cov.par.means.sp2[1]+Cov.par.means.sp2[2]*rnorm(10000,0,1))))
+mass.post.yel=mass.post.yel/sum(mass.post.yel)
+par(mfrow=c(2,1),mar=c(3,4,2,2),cex.axis=1.2,cex.lab=1.2)
+mass.green=matrix(0,2,12)
+mass.yellow=mass.green
+mass.green[1,1:8]=mass.emp.green
+mass.green[2,]=mass.post.green
+mass.yellow[1,1:8]=mass.emp.yel
+mass.yellow[2,]=mass.post.yel
+barplot(mass.green,beside=T,col=c("darkgreen","lightgreen"),ylab="Mass",legend.text=c("Green empirical","Green posterior"),args.legend=list(cex=1.2))
+par(mar=c(5,4,0,2))
+barplot(mass.yellow,beside=T,col=c("yellow3","lightyellow"),ylab="Mass",xlab="Group size",names.arg=c(1:12),legend.text=c("Yellow empirical","Yellow posterior"),args.legend=list(cex=1.2))
 
 #plot  observer-specific detection functions,
 #conditional detection functions, delta dependence function, duplicate detection function (seen by both),

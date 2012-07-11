@@ -22,6 +22,7 @@
 #' @param Hab.cov	A data.frame object giving covariates thought to influence abundance intensity at strata level; column names index individual covariates
 #' @param Obs.cov  A (max # of observers X # of transects X # of observer covariates) size array giving observer covariate values for each transect flown
 #' @param Hab.formula	A formula vector giving the specific model for abundance intensity at the strata level (e.g., ~Vegetation+Latitude) for each species
+#' @param detect If TRUE (the default), detectability is estimated; if FALSE, assumes detection probability is 1.0 (i.e. a census).  
 #' @param Det.formula  A formula giving the model for detection probability (e.g. ~Distance+Group+Visibility+Observer). Note that
 #'				there are several "reserved" variable names.  "Distance", "Observer", "Species", and "Group" are reserved variable names.
 #' @param Cov.prior.pdf	If individual covariates are provided, this character matrix gives the form of the prior pdfs for each covariate
@@ -48,7 +49,8 @@
 #' @param srr.tol Threshold eigenvalue level for SRR; only eigenvectors with higher eigenvalues than srr.tol are included in SRR formulation (default is 0.5)
 #' @param misID If TRUE, updates species for observed animals and estimates misID parameters
 #' @param misID.mat With true state on rows and assigned state on column, each positive entry provides an index to misID.models (i.e. what model to assume on multinomial logit space); a 0 indicates an impossible assigment; a negative number designates which column is to be obtained via subtraction
-#' @param misID.models A formula vector providing linar model-type formulas for each positive value of misID.mat.  If the same model is used in multiple columns it is assumed that all fixed effects (except the intercept) are shared
+#' @param misID.models A formula vector providing linear model-type formulas for each positive value of misID.mat.  
+#' @param misID.symm If TRUE, the constraint pi^{i|j}=pi^{j|i} is implemented; in this case, entries for pi^{j|i} are all assumed to be given a '-1' in misID.mat
 #' @param grps 	If FALSE, detections are assumed to all be of individual animals
 #' @param M		Vector giving maximum possible value for number of groups present in each transect (in practice just set high enough that values at M and above are never sampled during MCMC)
 #' 			and can be fine tuned as needed
@@ -61,7 +63,7 @@
 #'	"MH.cor": Metropolis-hastings tuning parameter for updating the correlation parameter (if point.ind==TRUE);
 #'	"MH.nu": MH tuning parameters for Nu parameters (dimension = # species X # of unique strata sampled)
 #'	"MH.beta": A matrix of tuning parameters for betas of the abundance process (nrows=number of species, ncol = max number of columns of habitat DM);
-#'	"RJ.N"}{A vector giving the maximum number of additions and deletions proposed in an iteration of the RJMCMC algorithm for each transect
+#'	"RJ.N": A matrix giving the maximum number of additions and deletions proposed in an iteration of the RJMCMC algorithm for each species (row) and each transect (column)
 #' @param Inits	An (optional) list object providing initial values for model parameters, with the following slots:
 #' "Beta.hab": Initial values for habitat linear predictor parameters;
 #'	"Beta.det": Initial values for detection model (includes distance, observer, env. variables, and individual covariates);
@@ -157,7 +159,7 @@
 #' plot_obs_pred(simdata)
 #' #table(simdata$MCMC,a=0.025)
 #' dens.plot(simdata$MCMC)
-hierarchical_DS<-function(Dat,Adj,Area.hab=1,Mapping,Area.trans,Observers,Bin.length,Hab.cov,Obs.cov,Hab.formula,Det.formula,Cov.prior.pdf,Cov.prior.parms,Cov.prior.fixed,Cov.prior.n,n.obs.cov=0,pol.eff=c(1:2),point.ind=TRUE,spat.ind=FALSE,fix.tau.nu=FALSE,srr=TRUE,srr.tol=0.5,misID=FALSE,misID.models=NULL,misID.mat=NULL,Inits=NULL,Levels=NA,grps=FALSE,M,Control,adapt=TRUE,Prior.pars){
+hierarchical_DS<-function(Dat,Adj,Area.hab=1,Mapping,Area.trans,Observers,Bin.length,Hab.cov,Obs.cov,Hab.formula,Det.formula,detect=TRUE,Cov.prior.pdf,Cov.prior.parms,Cov.prior.fixed,Cov.prior.n,n.obs.cov=0,pol.eff=c(1:2),point.ind=TRUE,spat.ind=FALSE,fix.tau.nu=FALSE,srr=TRUE,srr.tol=0.5,misID=FALSE,misID.models=NULL,misID.mat=NULL,misID.symm=TRUE,Inits=NULL,Levels=NA,grps=FALSE,M,Control,adapt=TRUE,Prior.pars){
 	require(mvtnorm)
 	require(Matrix)
 	require(truncnorm)
@@ -213,8 +215,9 @@ hierarchical_DS<-function(Dat,Adj,Area.hab=1,Mapping,Area.trans,Observers,Bin.le
 	
 	#add an additional column for "True species" and fill
 	True.sp=Dat.num[,"Species"]
+	Obs.sp=tabulate(True.sp)[1:n.species]
 	unk.ind=which(True.sp==(n.species+1))
-	if(length(unk.ind)>0)True.sp[unk.ind]=sample(c(1:n.species),length(unk.ind),replace=TRUE)
+	if(length(unk.ind)>0)True.sp[unk.ind]=sample(c(1:n.species),length(unk.ind),prob=Obs.sp,replace=TRUE)
 	True.sp[which(duplicated(Dat.num[,"Match"])==TRUE)]=True.sp[which(duplicated(Dat.num[,"Match"])==TRUE)-1]
 	
 	if(DEBUG==TRUE)True.sp=Out$True.species #for debugging
@@ -234,6 +237,7 @@ hierarchical_DS<-function(Dat,Adj,Area.hab=1,Mapping,Area.trans,Observers,Bin.le
 				Data[isp,itrans,1:nrow(Cur.dat),1:(3+n.obs.cov)]=as.matrix(Cur.dat[,1:(3+n.obs.cov)])
 				Data[isp,itrans,1:nrow(Cur.dat),5+n.obs.cov]=as.matrix(Cur.dat[,"Distance"])
 				#fill distances for unobserved
+			    if((M[isp,itrans]-nrow(Cur.dat))<=0)cat("Error: M dimension too small; Increase M \n")
 				if(i.binned==1)Data[isp,itrans,(nrow(Cur.dat)+1):M[isp,itrans],5+n.obs.cov]=rep(sample(c(1:n.bins),size=(M[isp,itrans]-nrow(Cur.dat))/n.Observers[itrans],replace=TRUE,prob=Bin.length),each=n.Observers[itrans])
 				else Data[isp,itrans,(nrow(Cur.dat)+1):M[isp,itrans],5+n.obs.cov]=rep(runif((M[isp,itrans]-nrow(Cur.dat))/n.Observers[itrans]),each=n.Observers[itrans])
 				#fill individual covariate values for (potential) animals that weren't observed
@@ -277,24 +281,24 @@ hierarchical_DS<-function(Dat,Adj,Area.hab=1,Mapping,Area.trans,Observers,Bin.le
 		}
 	}
 	#for debugging, when data aug is set to truth (keep 0's when simulating data), need to put unobserved animals after observed animals
-	if(DEBUG==TRUE){
-		for(isp in 1:n.species){
-			for(itrans in 1:n.transects){
-				if(G.transect[isp,itrans]>0){
-					Cur.dat=Data[isp,itrans,1:n.Records[isp,itrans],]
-					if(n.Observers[itrans]==2){
-						Obs.ind=matrix(Cur.dat[,2],2,G.transect[isp,itrans])
-						Obs.ind[1,]=apply(Obs.ind,2,'max')
-						Obs.ind[2,]=Obs.ind[1,]
-						Obs.ind=as.vector(Obs.ind)
-					}
-					else Obs.ind=Cur.dat[,2]
-					Data[isp,itrans,1:n.Records[isp,itrans],]=rbind(Cur.dat[which(Obs.ind==1),],Cur.dat[which(Obs.ind==0),])			
-				}
-			}
-		}
-	}
-	
+#	if(DEBUG==TRUE){
+#		for(isp in 1:n.species){
+#			for(itrans in 1:n.transects){
+#				if(G.transect[isp,itrans]>0){
+#					Cur.dat=Data[isp,itrans,1:n.Records[isp,itrans],]
+#					if(n.Observers[itrans]==2){
+#						Obs.ind=matrix(Cur.dat[,2],2,G.transect[isp,itrans])
+#						Obs.ind[1,]=apply(Obs.ind,2,'max')
+#						Obs.ind[2,]=Obs.ind[1,]
+#						Obs.ind=as.vector(Obs.ind)
+#					}
+#					else Obs.ind=Cur.dat[,2]
+#					Data[isp,itrans,1:n.Records[isp,itrans],]=rbind(Cur.dat[which(Obs.ind==1),],Cur.dat[which(Obs.ind==0),])			
+#				}
+#			}
+#		}
+#	}
+#	
 	#set starting 'observed' species to zero for nondetections
     for(isp in 1:n.species){
 		for(itrans in 1:n.transects){
@@ -397,10 +401,10 @@ hierarchical_DS<-function(Dat,Adj,Area.hab=1,Mapping,Area.trans,Observers,Bin.le
 
 	Meta=list(n.transects=n.transects,n.species=n.species,S=S,spat.ind=spat.ind,Area.hab=Area.hab,Area.trans=Area.trans,
 			Adj=Adj,Mapping=Mapping,Covered.area=Covered.area,n.Observers=n.Observers,M=M,stacked.names=stacked.names,
-			factor.ind=factor.ind,Det.formula=Det.formula,Levels=Levels,i.binned=i.binned,dist.pl=dist.pl,
+			factor.ind=factor.ind,Det.formula=Det.formula,detect=detect,Levels=Levels,i.binned=i.binned,dist.pl=dist.pl,
 			G.transect=G.transect,N.transect=N.transect,grps=grps,n.bins=n.bins,Bin.length=Bin.length,n.ind.cov=n.ind.cov,
 			Cov.prior.pdf=Cov.prior.pdf,Cov.prior.parms=Cov.prior.parms,Cov.prior.fixed=Cov.prior.fixed,Cov.prior.n=Cov.prior.n,point.ind=point.ind,fix.tau.nu=fix.tau.nu,
-			srr=srr,srr.tol=srr.tol,misID=misID,misID.models=misID.models,misID.mat=misID.mat,N.par.misID=N.par.misID,N.hab.par=N.hab.par)
+			srr=srr,srr.tol=srr.tol,misID=misID,misID.models=misID.models,misID.mat=misID.mat,misID.symm=misID.symm,N.par.misID=N.par.misID,N.hab.par=N.hab.par)
 	
 	mcmc_ds<-cmpfun(mcmc_ds)
 	if(adapt==TRUE){

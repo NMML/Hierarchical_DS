@@ -159,14 +159,15 @@ generate_inits<-function(DM.hab,DM.det,G.transect,Area.trans,Area.hab,Mapping,po
 generate_inits_misID<-function(DM.hab,DM.det,N.hab.par,G.transect,Area.trans,Area.hab,Mapping,point.ind,spat.ind,grp.mean,misID,misID.mat,N.par.misID){		
 	n.species=nrow(G.transect)
 	n.cells=length(Area.hab)
-	MisID=NULL
+	n.misID.eq=max(misID.mat)
+	MisID=vector("list",n.misID.eq)
 	if(misID){
-		n.misID.eq=max(misID.mat)
-		ncol.misID=max(N.par.misID)
-		MisID=matrix(runif(n.misID.eq*ncol.misID,-.5,.5),n.misID.eq,ncol.misID)
+		for(itmp in 1:n.misID.eq)MisID[[itmp]]=runif(N.par.misID[itmp],-.5,.5)
 		diag.mods=diag(misID.mat)
 		diag.mods=diag.mods[which(diag.mods>0)]
-		if(length(diag.mods)>0)MisID[diag.mods,1]=MisID[diag.mods,1]+2 #ensure that the highest probability is for a non-misID
+		if(length(diag.mods)>0){
+			for(itmp in 1:length(diag.mods))MisID[[diag.mods[itmp]]][1]=MisID[[diag.mods[itmp]]][1]+2 #ensure that the highest probability is for a non-misID
+		}
 	}
 	hab=matrix(0,n.species,max(N.hab.par))
 	Nu=matrix(0,n.species,n.cells)
@@ -182,6 +183,115 @@ generate_inits_misID<-function(DM.hab,DM.det,N.hab.par,G.transect,Area.trans,Are
 	if(spat.ind==1)Par$Eta=0*Par$Eta
 	Par
 }
+
+#' Fill confusion array - one confusion matrix for each individual
+#' @param Confuse	An 3-dimensional array, with dimensions (# of individuals, # of rows in misID.mat, # of cols of misID.mat)
+#' @param Cov	Data frame including all covariates for the misclassification model (individuals are on rows)
+#' @param Beta A list where each entry is a vector giving the parameters of the misID model
+#' @param n.indiv Integer giving the number of individuals 
+#' @param misID.mat With true state on rows and assigned state on column, each positive entry provides an index to misID.models (i.e. what model to assume on multinomial logit space); a 0 indicates an impossible assigment; a negative number designates which column is to be obtained via subtraction
+#' @param misID.models A formula vector providing linear model-type formulas for each positive value of misID.mat.  If the same model is used in multiple columns it is assumed that all fixed effects (except the intercept) are shared
+#' @param symm	if TRUE, symmetric classification probabilities are applied (e.g. pi^12=pi^21)
+#' @return A filled version of Confuse
+#' @export
+#' @author Paul B. Conn
+get_confusion_array<-function(Confuse,Cov=NULL,Beta,n.indiv,misID.mat,misID.formulas,symm=TRUE){
+	if(is.null(Cov)==1)Cov=data.frame(matrix(1,n.indiv,1))
+	DM=vector("list",max(misID.mat))
+	Pi=DM
+	ind.mat=matrix(c(1:length(misID.mat)),nrow(misID.mat),ncol(misID.mat))
+	
+	for(ipar in 1:length(misID.mat)){
+		if(misID.mat[ipar]==0)Pi[[ipar]]=rep(0,n.indiv)
+		if(misID.mat[ipar]<0)Pi[[ipar]]=rep(1,n.indiv)
+		if(misID.mat[ipar]>0){
+			DM[[ipar]]=model.matrix(misID.formulas[[misID.mat[ipar]]],data=Cov)
+			Pi[[ipar]]=exp(DM[[ipar]]%*%Beta[[misID.mat[ipar]]])
+		}
+	}
+	if(symm==TRUE){
+		for(iind in 1:n.indiv){
+			for(icol in 1:ncol(misID.mat)){
+				Confuse[iind,1,icol]=Pi[[ind.mat[1,icol]]][iind]
+			}
+			Confuse[iind,1,]=Confuse[iind,1,]/sum(Confuse[iind,1,])
+			Pi[[ind.mat[2,3]]]=rep(1,n.indiv)
+			Pi[[ind.mat[2,1]]]=(Confuse[iind,1,2]+Confuse[iind,1,2]*Pi[[ind.mat[2,2]]])/(1-Confuse[iind,1,2])
+			for(icol in 1:ncol(misID.mat))Confuse[iind,2,icol]=Pi[[ind.mat[2,icol]]][iind]
+			Confuse[iind,2,]=Confuse[iind,2,]/sum(Confuse[iind,2,])		
+		}
+	}
+	else{
+		for(iind in 1:n.indiv){
+			for(irow in 1:nrow(misID.mat)){
+				for(icol in 1:ncol(misID.mat))Confuse[iind,irow,icol]=Pi[[ind.mat[irow,icol]]][iind]
+				Confuse[iind,irow,]=Confuse[iind,irow,]/sum(Confuse[iind,irow,])
+			}
+		}
+	}
+	Confuse
+}
+
+#' Fill a list with confusion matrices for each record
+#' @param Cur.dat	Matrix giving data (records and covariates)  - multiple rows can be given (e.g. reflecting different observers)
+#' @param stacked.names	A character vector giving column names for the data
+#' @param factor.ind  An integer vector holding whehter each column of data is to be treated as numeric or factor
+#' @param Levels  A list, each entry of which corresponds to a column name for factor variables and gives the possible levels of those factors
+#' @param Beta A list where each entry is a vector giving the parameters of the misID model
+#' @param misID.mat With true state on rows and assigned state on column, each positive entry provides an index to misID.models (i.e. what model to assume on multinomial logit space); a 0 indicates an impossible assigment; a negative number designates which column is to be obtained via subtraction
+#' @param misID.models A formula vector providing linear model-type formulas for each positive value of misID.mat.  If the same model is used in multiple columns it is assumed that all fixed effects (except the intercept) are shared
+#' @param misID.symm	if TRUE, symmetric classification probabilities are applied (e.g. pi^12=pi^21)
+#' @return A list of confusion matrices, one for each row in Cur.dat
+#' @export
+#' @author Paul B. Conn
+get_confusion_mat<-function(Cur.dat,Beta,misID.mat,misID.models,misID.symm=TRUE,stacked.names,factor.ind,Levels){
+	Pi=vector("list",length(misID.mat))
+	n.obs=nrow(Cur.dat)
+	ind.mat=matrix(c(1:length(misID.mat)),nrow(misID.mat),ncol(misID.mat))
+	Confuse=vector("list",n.obs)
+	for(ipar in 1:length(misID.mat)){
+		if(misID.mat[ipar]==0)Pi[[ipar]]=rep(0,n.obs)
+		if(misID.mat[ipar]<0)Pi[[ipar]]=rep(1,n.obs)
+		if(misID.mat[ipar]>0){
+			DM=get_mod_matrix(Cur.dat=Cur.dat,stacked.names=stacked.names,factor.ind=factor.ind,Det.formula=misID.models[[misID.mat[ipar]]],Levels=Levels)
+			Pi[[ipar]]=exp(DM%*%Beta[[misID.mat[ipar]]])
+		}
+	}					
+	if(misID.symm==TRUE){
+		for(irow in 2:nrow(misID.mat)){
+			for(icol in 1:(irow-1))Pi[[ind.mat[irow,icol]]]=rep(0,n.obs) #initialize to zero for entries set with symmetry constraint
+		}
+		
+		for(iobs in 1:n.obs){
+			Confuse[[iobs]]=matrix(0,nrow(misID.mat),ncol(misID.mat))
+			#step one, calculate assignment probabilities for first row of confusion array
+			for(icol in 1:ncol(misID.mat))Confuse[[iobs]][1,icol]=Pi[[ind.mat[1,icol]]][iobs]
+			Confuse[[iobs]][1,]=Confuse[[iobs]][1,]/sum(Confuse[[iobs]][1,])
+			#now, for remaining rows, substitute in confusion values from previous rows and calculate Pi values
+			for(irow in 2:nrow(misID.mat)){
+				sum.pi=0
+				for(icol in 1:ncol(misID.mat))sum.pi=sum.pi+Pi[[ind.mat[irow,icol]]][iobs]
+				for(icol in 1:(irow-1))Confuse[[iobs]][irow,icol]=Confuse[[iobs]][icol,irow]
+				sum.Conf=sum(Confuse[[iobs]][irow,])
+				for(icol in 1:(irow-1))Pi[[ind.mat[irow,icol]]][iobs]=Confuse[[iobs]][icol,irow]*sum.pi/(1-sum.Conf)
+				for(icol in 1:ncol(misID.mat))Confuse[[iobs]][irow,icol]=Pi[[ind.mat[irow,icol]]][iobs]
+				Confuse[[iobs]][irow,]=Confuse[[iobs]][irow,]/sum(Confuse[[iobs]][irow,])
+			}
+			
+		}
+	}
+	else{
+		for(iobs in 1:n.obs){
+			Confuse[[iobs]]=matrix(0,dim(misID.mat))
+			for(irow in 1:nrow(misID.mat)){
+				for(icol in 1:ncol(misID.mat))Confuse[[iobs]][irow,icol]=Pi[[ind.mat[irow,icol]]][iobs]
+				Confuse[[iobs]][irow,]=Confuse[[iobs]][irow,]/sum(Confuse[[iobs]][irow,])
+			}
+		}
+	}
+	Confuse					
+}
+
 
 
 #' compute the first derivative of log_lambda likelihood component for Langevin-Hastings
@@ -517,7 +627,7 @@ convert.HDS.to.mcmc<-function(MCMC,N.hab.par,Cov.par.n,Hab.names,Det.names,Cov.n
 	}
 	if(misID==TRUE){
 		for(imod in 1:max(misID.mat)){
-			Mat[,(counter+1):(counter+N.par.misID[imod])]=MCMC$MisID[,imod,1:N.par.misID[imod]]
+			Mat[,(counter+1):(counter+N.par.misID[imod])]=MCMC$MisID[[imod]]
 			counter=counter+N.par.misID[imod]
 			col.names=c(col.names,paste("misID.mod",imod,".",MisID.names[[imod]],sep=''))
 		}

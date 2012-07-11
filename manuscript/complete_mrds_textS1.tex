@@ -92,8 +92,7 @@ Paul B. Conn $^{1,\ast}$,
 Jeffrey L. Laake $^{1}$,
 Devin S. Johnson$^{1}$,
 \\
-{\bf{1}} NOAA National Marine Mammal Laboratory, Alaska Fisheries Science Center,
-7600 Sand Point Way NE, Seattle, WA, 98115 U.S.A.
+{\bf{1}} National Marine Mammal Laboratory, Alaska Fisheries Science Center, National Marine Fisheries Service, Seattle, WA U.S.A.
 \\
 $\ast$ E-mail: paul.conn@noaa.gov
 \end{flushleft}
@@ -104,7 +103,7 @@ Here, we describe full conditional distributions and Markov chain Monte Carlo up
 
 \subsection*{Sampling $\boldsymbol{\beta}^{\rm hab}$}
 
-The full conditional distribution for $[\boldsymbol{\beta}^{\rm hab}|\hdots]$ (the conditional distribution of $\boldsymbol{\beta}^{\rm hab}$ given all other parameters is given by
+The full conditional distribution for $[\boldsymbol{\beta}^{\rm hab}|\hdots]$ (the conditional distribution of $\boldsymbol{\beta}^{\rm hab}$ given all other parameters) is given by
 $$
     [\boldsymbol{\nu} | \boldsymbol{\beta}^{\rm hab},{\bf X}^{\rm hab},\tau_\nu][\boldsymbol{\beta}^{\rm hab}]\propto[\boldsymbol{\nu} | \boldsymbol{\beta}^{\rm hab},{\bf X}^{hab},\tau_\nu],
 $$
@@ -191,7 +190,7 @@ where $\Delta_{ijk}=\tilde{Y}_{ijk}-[{\bf X}^{\rm det} \boldsymbol{\beta}]_{ijk}
 
 \subsection*{Sampling $\tilde{\bf Y}$}
 
-For animals currently in the population (i.e., for $i \in [1,2,\hdots,G_j]$), the full conditional distribution $[ \tilde{Y}_{ijk} | \hdots]$ is a truncated normal, and may be sampled directly.  If $Y_{ijk}=0$, $\tilde{Y}_{ijk}$ is drawn from a normal distribution with the constraint that $\tilde{Y}_{ijk}<0$, while $\tilde{Y}_{ijk}>0$ if $Y_{ijk}=1$.  The corresponding untruncated distribution is given by
+For animals currently in the population (i.e. for $i \in [1,2,\hdots,G_j]$), the full conditional distribution $[ \tilde{Y}_{ijk} | \hdots]$ is a truncated normal, and may be sampled directly.  If $Y_{ijk}=0$, $\tilde{Y}_{ijk}$ is drawn from a normal distribution with the constraint that $\tilde{Y}_{ijk}<0$, while $\tilde{Y}_{ijk}>0$ if $Y_{ijk}=1$.  The corresponding untruncated distribution is given by
 $$
 \tilde{Y}_{ijk} \sim \textrm{Normal} \left( [{\bf X}^{\rm det} \boldsymbol{\beta}^{\rm det}]_{ijk},1  \right)
 $$
@@ -203,7 +202,7 @@ when $O_j=2$.
 
 \subsection*{Sampling $\boldsymbol{\theta}, \boldsymbol{\epsilon}$}
 
-If random effects are not specified (i.e., $\epsilon_{ijk}=0$ $\forall$ $\{i,j,k\}$), specification of conjugate priors for the Poisson, zero-truncated Poisson, and multinomial distributions meant that full conditionals were available in closed form and could be simulated directly.  If random effects are specified, both the parameters of the underlying distribution (i.e., $\boldsymbol{\theta}$) and the random effects themselves (i.e., $\boldsymbol{\epsilon}$)
+If random effects are not specified (i.e. $\epsilon_{ijk}=0$ $\forall$ $\{i,j,k\}$), specification of conjugate priors for the Poisson, zero-truncated Poisson, and multinomial distributions meant that full conditionals were available in closed form and could be simulated directly.  If random effects are specified, both the parameters of the underlying distribution (i.e. $\boldsymbol{\theta}$) and the random effects themselves (i.e. $\boldsymbol{\epsilon}$)
 are sampled via the Metropolis-Hastings algorithm.  Owing to the relatively large number of individual covariate distributions, we refer the reader to Dataset S1 for further details.
 
 \bibliography{master_bib}

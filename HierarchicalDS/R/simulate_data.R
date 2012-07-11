@@ -12,14 +12,16 @@
 #' @param n.bins If dist.cont=FALSE, how many bins to use for distances.  Default is 5.
 #' @param cor.par Correlation at maximum distance.  Default is 0.5
 #' @param Grp.par	A vector with an entry for each species giving parameters for group size (assumed zero-truncated Poisson). Default is 3 and 1, corresponding to mean group sizes of 4 and 2 for each species
-#' @param Conf.model If misID=TRUE, this gives a list vector with formulas for the confusion matrix. Formulas are provided for "getting it right" and "getting an unknown".  Default is c(~Observer+Group+Distance+Species, ~Observer). The same models are assumed for each species.
-#' @param Conf.par	If misID=TRUE, ths is a list vector with parameters for each confusion model.  Default is list(c(2,.2,.4,.3,-.1,-.2,-.4,-.8,.5),c(-1,-.2,.2)) 
-
+#' @param misID.mat With true state on rows and assigned state on column, each positive entry provides an index to misID.models (i.e. what model to assume on multinomial logit space); a 0 indicates an impossible assigment; a negative number designates which column is to be obtained via subtraction
+#' @param misID.par A list, each element of which gives the parameters associated with each entry in misID.models 
+#' @param misID.models A formula vector providing linear model-type formulas for each positive value of misID.mat.  If the same model is used in multiple columns it is assumed that all fixed effects (except the intercept) are shared
+#' @param misID.symm If TRUE, the constraint pi^{i|j}=pi^{j|i} is implemented; in this case, entries for pi^{j|i} are all assumed to be = pi^{i|j} (default is TRUE)
+#' @par
 #' @return a distance sampling dataset
 #' @export
 #' @keywords distance sampling, simulation
 #' @author Paul B. Conn
-simulate_data<-function(S,Observers,misID=TRUE,X.site=NULL,n.species=2,Beta.hab=NULL,Beta.det=NULL,detect.model=~Observer+Distance+Group+Species,dist.cont=FALSE,n.bins=5,cor.par=0.5,Grp.par=c(3,1),Conf.model=NULL,Conf.par=NULL){
+simulate_data<-function(S,Observers,misID=TRUE,X.site=NULL,n.species=2,Beta.hab=NULL,Beta.det=NULL,detect.model=~Observer+Distance+Group+Species,dist.cont=FALSE,n.bins=5,cor.par=0.5,Grp.par=c(3,1),misID.models=NULL,misID.par=NULL,misID.mat=NULL,misID.symm=TRUE){
 	require(mvtnorm)
 	
 	if(n.species>2)cat("\n Error: current max species is 2 \n")
@@ -32,8 +34,11 @@ simulate_data<-function(S,Observers,misID=TRUE,X.site=NULL,n.species=2,Beta.hab=
 	if(is.null(X.site)==TRUE)X.site=cbind(rep(1,S),log(c(1:S)/S),(log(c(1:S)/S))^2) #covariate on abundance intensity, sp 1
 	if(is.null(Beta.hab)==TRUE){
 		Beta.hab=matrix(0,n.species,3)
-		Beta.hab[1,]=c(log(40),1,0) 
+		#Beta.hab[1,]=c(log(40),1,0) 
+		Beta.hab[1,]=c(log(100),1,0) 
 		if(n.species==2)Beta.hab[2,]=c(log(10),-2,-1)
+		Beta.hab[1,]=c(log(100),0,0) 
+		if(n.species==2)Beta.hab[2,]=c(log(10),0,0)
 	}
 	
 	#detection parameters
@@ -41,8 +46,9 @@ simulate_data<-function(S,Observers,misID=TRUE,X.site=NULL,n.species=2,Beta.hab=
 	else Levels=list(Observer=unique(c(Observers)),Species=as.factor(1:n.species))
 	factor.ind=list(Observer=TRUE,Distance=(dist.cont==FALSE),Group=FALSE,Species=TRUE)
 	
-	if(is.null(Beta.det)==TRUE)Beta.det=c(1.2,-.2,-.4,-.6,-.9,-1.1,-1.3,.1,.3)  #obs 1 (bin 1), obs 2, obs 3, offset for bin 2, ..., offset for bin n.bins, grp size,species
-												
+	if(is.null(Beta.det)==TRUE)Beta.det=c(10,-.2,-.4,-.6,-.9,-1.1,-1.3,.1,.3)  #obs 1 (bin 1), obs 2, obs 3, offset for bin 2, ..., offset for bin n.bins, grp size,species
+	#Beta.det=c(1.2,-.2,-.4,-.6,-.9,-1.1,-1.3,.1,.3)  #obs 1 (bin 1), obs 2, obs 3, offset for bin 2, ..., offset for bin n.bins, grp size,species
+	
 	N1=round(exp(X.site%*%Beta.hab[1,]))
 	N2=N1*0
 	if(n.species==2)N2=round(exp(X.site%*%Beta.hab[2,]))
@@ -57,12 +63,16 @@ simulate_data<-function(S,Observers,misID=TRUE,X.site=NULL,n.species=2,Beta.hab=
 	
 	#initialize confusion matrix, etc.
 	if(misID==1){
-		Confusion=matrix(0,2,3)
-		Confusion[1,]=c(1,-1,2)
-		Confusion[2,]=c(-1,1,2)
-		if(is.null(Conf.model)==TRUE)Conf.model=c(~Observer+Group+Distance+Species,~Observer)
-		if(is.null(Conf.par)==TRUE){
-			Conf.par=list(c(2,.2,.4,.3,-.1,-.2,-.4,-.8,.5),c(-1,-.2,.2)) #parameters for getting an 'unknown'
+		if(is.null(misID.mat)){
+			misID.mat=matrix(0,2,3)
+			misID.mat[1,]=c(1,-1,2)
+			#Confusion[2,]=c(-1,1,2)
+			misID.mat[2,]=c(-1,3,-1)
+		}
+		if(is.null(misID.models)==TRUE)misID.models=c(~1,~1,~1)
+		#Conf.model=c(~Observer+Group+Distance+Species,~Observer)
+		if(is.null(misID.par)==TRUE){misID.par=list(2,1,3)
+			#Conf.par=list(c(2,.2,.4,.3,-.1,-.2,-.4,-.8,.5),c(-1,-.2,.2)) #parameters for getting an 'unknown'
 		}
 	}
 	
@@ -152,38 +162,22 @@ simulate_data<-function(S,Observers,misID=TRUE,X.site=NULL,n.species=2,Beta.hab=
 	
 	Dat=Dat2
 	True.species=Dat[,"Species"]
+	n.indiv=nrow(Dat)
 	
+	Confuse=array(0,dim=c(n.indiv,dim(misID.mat)))
+	Confuse=get_confusion_array(Confuse,Cov=NULL,Beta=as.matrix(misID.par),n.indiv=n.indiv,misID.mat=misID.mat,misID.formulas=misID.models,symm=misID.symm)
+	#cat(Confuse)
+
+	subset_conf_array2<-function(Confuse,Species,n.indiv){
+		Cur=matrix(0,n.indiv,dim(Confuse)[3])
+		for(iind in 1:n.indiv)Cur[iind,]=Confuse[iind,Species[iind],]
+		Cur
+	}
 	if(misID==TRUE){
 		# Now, put in partial observation process
-		Ind.sp1=which(Dat[,"Species"]==1)
-		Ind.sp2=which(Dat[,"Species"]==2)
-		Dat1=Dat[Ind.sp1,]
-		Dat1[,"Species"]=0  # i think species is continuous here
-		X=model.matrix(Conf.model[[1]],data=Dat1)
-		MN.logit.right=exp(X%*%Conf.par[[1]])
-		X=model.matrix(Conf.model[[2]],data=Dat1)
-		MN.logit.unk=exp(X%*%Conf.par[[2]])
-		Psi=matrix(0,nrow(Dat1),3)
-		Psi[,1]=MN.logit.right/(1+MN.logit.right+MN.logit.unk)
-		Psi[,3]=MN.logit.unk/(1+MN.logit.right+MN.logit.unk)
-		Psi[,2]=1-Psi[,1]-Psi[,3]
+		Probs=subset_conf_array2(Confuse=Confuse,Species=Dat[,"Species"],n.indiv=n.indiv)		
 		get_samp<-function(prob)sample(c(1:length(prob)),1,prob=prob)
-		Cur.sp=apply(Psi,1,'get_samp')	
-		Dat[Ind.sp1,"Species"]=Cur.sp
-		
-		Dat1=Dat[Ind.sp2,]
-		Dat1[,"Species"]=1
-		X=model.matrix(Conf.model[[1]],data=Dat1)
-		MN.logit.right=exp(X%*%Conf.par[[1]])
-		X=model.matrix(Conf.model[[2]],data=Dat1)
-		MN.logit.unk=exp(X%*%Conf.par[[2]])
-		Psi=matrix(0,nrow(Dat1),3)
-		Psi[,2]=MN.logit.right/(1+MN.logit.right+MN.logit.unk)
-		Psi[,3]=MN.logit.unk/(1+MN.logit.right+MN.logit.unk)
-		Psi[,1]=1-Psi[,2]-Psi[,3]
-		get_samp<-function(prob)sample(c(1:length(prob)),1,prob=prob)
-		Cur.sp=apply(Psi,1,'get_samp')	
-		Dat[Ind.sp2,"Species"]=Cur.sp
+		Dat[,"Species"]=apply(Probs,1,'get_samp')	
 	}
 	Dat[,"Species"]=as.integer(Dat[,"Species"])
 	
