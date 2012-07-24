@@ -108,15 +108,17 @@ mcmc_ds<-function(Par,Data,cur.iter,adapt,Control,DM.hab,DM.det,Q,Prior.pars,Met
 	if(Meta$grps==TRUE)grp.pl=which(Meta$stacked.names=="Group")
 	
 	#initialize G.obs (number of groups observed per transect)
-	G.obs=Meta$G.transect
+	G.obs=Meta$G.transect  #number of groups observed by at least one observer
 	for(isp in 1:Meta$n.species){
 		for(itrans in 1:Meta$n.transects){
 			Tmp=matrix(Data[isp,itrans,1:n.Records[isp,itrans],2],Meta$G.transect[isp,itrans],Meta$n.Observers[itrans],byrow=TRUE)
 			G.obs[isp,itrans]=sum(apply(Tmp,1,'sum')>0)
 		}
 	}
+	g.tot.obs=colSums(G.obs)%*%Meta$n.Observers  #total number of observations of animals seen at least once
 	
-	n.samp.misID=max(1,round(0.5*sum(G.obs)))  #currently only updating species for 1/10 of population at each iteration
+	
+	n.samp.misID=max(1,round(0.05*sum(G.obs)))  #currently only updating species for 1/10 of population at each iteration
 	
 	if(Meta$detect==FALSE){
 		Meta$Det.formula=~1
@@ -236,7 +238,7 @@ mcmc_ds<-function(Par,Data,cur.iter,adapt,Control,DM.hab,DM.det,Q,Prior.pars,Met
 	#initialize random effect matrices for individual covariates if required
 	if(sum(1-Meta$Cov.prior.fixed)>0)RE.cov=array(0,dim=c(Meta$n.species,Meta$n.transects,max(Meta$M),Meta$n.ind.cov))
 	
-	PROFILE=FALSE
+	PROFILE=FALSE  #outputs time associated with updating different groups of parameters
 	DEBUG=FALSE
 	if(DEBUG){
 		Par$misID[[1]]=2
@@ -258,7 +260,7 @@ mcmc_ds<-function(Par,Data,cur.iter,adapt,Control,DM.hab,DM.det,Q,Prior.pars,Met
 			Eta=Par$Eta[isp,]
 			Mu=DM.hab[[isp]]%*%Hab+Eta
 			if(DEBUG){
-				Par$hab[1,]=c(log(100),0,0) 
+				Par$hab[1,]=c(log(40),0,0) 
 				Par$hab[2,]=c(log(10),0,0)
 				Par$Nu[isp,Sampled]=Mu[Sampled]
 			}
@@ -550,7 +552,7 @@ mcmc_ds<-function(Par,Data,cur.iter,adapt,Control,DM.hab,DM.det,Q,Prior.pars,Met
 				}
 				Obs.species=Cur.dat[,3]
 				#abundance component
-				mh=log(Lambda.trans[prop.sp,itrans])+log(G.obs[isp,itrans])-log(Lambda.trans[isp,itrans])-log(G.obs[prop.sp,itrans]+1)  #verified 4/11/12 & again 6/14/12
+				mh=log(Lambda.trans[prop.sp,itrans])+log(Meta$G.transect[isp,itrans])-log(Lambda.trans[isp,itrans])-log(Meta$G.transect[prop.sp,itrans]+1)  #verified 4/11/12 & again 6/14/12
 				#detection (Y-tilde) component NEED TO PUT BINOMIAL COEFFICIENT IN HERE???
 				if(detect){
 					if(Meta$n.Observers[itrans]==1){
@@ -628,15 +630,14 @@ mcmc_ds<-function(Par,Data,cur.iter,adapt,Control,DM.hab,DM.det,Q,Prior.pars,Met
 				cat(paste("True species: ", (Sys.time()-st),'\n'))
 				st=Sys.time()
 			}
+		
 			
 			##### update misID parameters 
-			if(detect){
-				#note: can no longer do by species since misID.symm=TRUE means some parameters affect multiple species 
-				Cur.dat=Cur.dat[1,]
-				for(isp in 1:Meta$n.species)Cur.dat=rbind(Cur.dat,data.matrix(stack_data(Data=Data[isp,,,],Obs.transect=n.Records[isp,],n.transects=n.transects,stacked.names=Meta$stacked.names,factor.ind=Meta$factor.ind)))
-				Cur.dat=Cur.dat[-1,]
-				if(sum(Cur.dat[,3]==0)>0)Cur.dat=Cur.dat[-which(Cur.dat[,3]==0),]  #eliminate records where animals were missed
-				
+
+				#note: can no longer do by species since misID.symm=TRUE means some parameters affect multiple species         
+			  Cur.dat=stack_data_misID(Data=Data,G.obs=G.obs,g.tot.obs=g.tot.obs,n.Observers=Meta$n.Observers,n.transects=Meta$n.transects,n.species=Meta$n.species,stacked.names=Meta$stacked.names,factor.ind=Meta$factor.ind)
+        if(sum(Cur.dat[,3]==0)>0)Cur.dat=Cur.dat[-which(Cur.dat[,3]==0),]  #eliminate records where animals were missed
+         
 				Conf=get_confusion_mat(Cur.dat=Cur.dat,Beta=Par$MisID,misID.mat=Meta$misID.mat,misID.models=Meta$misID.models,misID.symm=Meta$misID.symm,stacked.names=Meta$stacked.names,factor.ind=Meta$factor.ind,Levels=Meta$Levels)					
 				Probs=rep(0,nrow(Cur.dat))
 				for(itmp in 1:nrow(Cur.dat))Probs[itmp]=Conf[[itmp]][Cur.dat[itmp,4],Cur.dat[itmp,3]]
@@ -645,7 +646,7 @@ mcmc_ds<-function(Par,Data,cur.iter,adapt,Control,DM.hab,DM.det,Q,Prior.pars,Met
 				
 				Temp.par=Par$MisID
 				for(ipl in 1:max(Meta$misID.mat)){  #now, update parameter values
-					for(ipar in 1:Meta$N.par.misID[ipar]){
+					for(ipar in 1:Meta$N.par.misID[ipl]){
 						beta.old=Par$MisID[[ipl]][ipar]
 						beta.star=beta.old+rnorm(1,0,Control$MH.misID[ipl,ipar])
 						Temp.par[[ipl]][ipar]=beta.star
@@ -658,8 +659,7 @@ mcmc_ds<-function(Par,Data,cur.iter,adapt,Control,DM.hab,DM.det,Q,Prior.pars,Met
 							if(Conf.sums[isp,isp]!=max(Conf.sums[isp,]))flag=1
 						}
 						if(flag==0){ 
-							Probs=rep(0,nrow(Cur.dat))
-							for(itmp in 1:nrow(Cur.dat))Probs[itmp]=Conf[[itmp]][Cur.dat[itmp,4],Cur.dat[itmp,3]]
+							for(itmp in 1:nrow(Cur.dat))Probs[itmp]=Conf.new[[itmp]][Cur.dat[itmp,4],Cur.dat[itmp,3]]
 							logL.new=sum(log(Probs))  #categorical distribution
 							if(runif(1)<exp(logL.new-logL.old+dnorm(beta.star,Prior.pars$misID.mu[[ipl]][ipar],Prior.pars$misID.sd[[ipl]][ipar],log=1)-dnorm(beta.old,Prior.pars$misID.mu[[ipl]][ipar],Prior.pars$misID.sd[[ipl]][ipar],log=1))){
 								Par$MisID[[ipl]][ipar]=beta.star
@@ -677,7 +677,7 @@ mcmc_ds<-function(Par,Data,cur.iter,adapt,Control,DM.hab,DM.det,Q,Prior.pars,Met
 				cat(paste("misID pars: ", (Sys.time()-st),'\n'))
 				st=Sys.time()
 			}		
-		}
+		
 		
 		if(detect){
 			###############       update detection process parameters       ##############

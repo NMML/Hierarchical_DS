@@ -37,7 +37,7 @@ simulate_data<-function(S,Observers,misID=TRUE,X.site=NULL,n.species=2,Beta.hab=
 		#Beta.hab[1,]=c(log(40),1,0) 
 		Beta.hab[1,]=c(log(100),1,0) 
 		if(n.species==2)Beta.hab[2,]=c(log(10),-2,-1)
-		Beta.hab[1,]=c(log(100),0,0) 
+		Beta.hab[1,]=c(log(40),0,0) 
 		if(n.species==2)Beta.hab[2,]=c(log(10),0,0)
 	}
 	
@@ -46,8 +46,8 @@ simulate_data<-function(S,Observers,misID=TRUE,X.site=NULL,n.species=2,Beta.hab=
 	else Levels=list(Observer=unique(c(Observers)),Species=as.factor(1:n.species))
 	factor.ind=list(Observer=TRUE,Distance=(dist.cont==FALSE),Group=FALSE,Species=TRUE)
 	
-	if(is.null(Beta.det)==TRUE)Beta.det=c(10,-.2,-.4,-.6,-.9,-1.1,-1.3,.1,.3)  #obs 1 (bin 1), obs 2, obs 3, offset for bin 2, ..., offset for bin n.bins, grp size,species
-	#Beta.det=c(1.2,-.2,-.4,-.6,-.9,-1.1,-1.3,.1,.3)  #obs 1 (bin 1), obs 2, obs 3, offset for bin 2, ..., offset for bin n.bins, grp size,species
+	#if(is.null(Beta.det)==TRUE)Beta.det=c(10,-.2,-.4,-.6,-.9,-1.1,-1.3,.1,.3)  #obs 1 (bin 1), obs 2, obs 3, offset for bin 2, ..., offset for bin n.bins, grp size,species
+	if(is.null(Beta.det)==TRUE)Beta.det=c(1.2,-.2,-.4,-.6,-.9,-1.1,-1.3,.1,.3)  #obs 1 (bin 1), obs 2, obs 3, offset for bin 2, ..., offset for bin n.bins, grp size,species
 	
 	N1=round(exp(X.site%*%Beta.hab[1,]))
 	N2=N1*0

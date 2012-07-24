@@ -90,6 +90,74 @@ stack_data<-function(Data,Obs.transect,n.transects,stacked.names,factor.ind){
 	Stacked
 }
 
+# #' function to stack data for midID updates (going from four dimensional array to a two dimensional array including observed groups
+# #' @param Data 4-d dataset
+# #' @param G.obs matrix giving the total numer of groups observed at least once by species and transect
+# #' @param g.tot.obs  total number of observations for animals seen at least once
+# #' @param n.Observers vector giving number of observers per transect
+# #' @param n.transects	number of transects
+# #' @param n.species number of species
+# #' @param stacked.names	column names for new stacked dataset
+# #' @param factor.ind	a vector of indicator variables (1 = factor/categorical variable, 0 = continuous variable)
+# #' @return a stacked dataset
+# #' @export
+# #' @keywords stack data
+# #' @author Paul B. Conn
+# stack_data_misID<-function(Data,G.obs,g.tot.obs,n.Observers,n.transects,n.species,stacked.names,factor.ind){
+#   #convert from "sparse" 4-d data augmentation array to a rich 2-d dataframe for updating misID parameters 
+#   if(n.transects==1 & n.species==1)Stacked=Data[1,1,,]
+#   else{
+#     G.tot.obs=G.obs
+#     Stacked=data.frame(matrix(0,g.tot.obs,length(Data[1,1,1,])))
+#     ipl=1
+#     for(isp in 1:n.species){
+#       G.tot.obs[isp,]=G.obs[isp,]*n.Observers
+#       for(itrans in 1:n.transects){
+#         if(G.obs[isp,itrans]>0)Stacked[ipl:(ipl+G.tot.obs[isp,itrans]-1),]=Data[isp,itrans,1:G.tot.obs[isp,itrans],]
+#         ipl=ipl+G.tot.obs[isp,itrans]
+#       }
+#     }
+#   }
+#   colnames(Stacked)=stacked.names	#gotta reestablish variable type since 4-d array doesn't hold it
+#   factor.cols=which(factor.ind[stacked.names]==TRUE) 
+#   if(length(factor.cols)>0){
+#     for(icol in 1:length(factor.cols)){
+#       Stacked[,factor.cols[icol]]=as.factor(Stacked[,factor.cols[icol]])
+#     }
+#   }
+#   Stacked
+# }
+
+#' function to stack data for midID updates (going from four dimensional array to a two dimensional array including observed groups
+#' @param Data 4-d dataset
+#' @param G.obs matrix giving the total numer of groups observed at least once by species and transect
+#' @param g.tot.obs  total number of observations for animals seen at least once
+#' @param n.Observers vector giving number of observers per transect
+#' @param n.transects  number of transects
+#' @param n.species number of species
+#' @return a stacked dataset (in matrix form)
+#' @export
+#' @keywords stack data
+#' @author Paul B. Conn
+stack_data_misID<-function(Data,G.obs,g.tot.obs,n.Observers,n.transects,n.species,stacked.names,factor.ind){
+  #convert from "sparse" 4-d data augmentation array to a rich 2-d dataframe for updating misID parameters 
+  if(n.transects==1 & n.species==1)Stacked=Data[1,1,,]
+  else{
+    G.tot.obs=G.obs
+    Stacked=matrix(0,g.tot.obs,length(Data[1,1,1,]))
+    ipl=1
+    for(isp in 1:n.species){
+      G.tot.obs[isp,]=G.obs[isp,]*n.Observers
+      for(itrans in 1:n.transects){
+        if(G.obs[isp,itrans]>0)Stacked[ipl:(ipl+G.tot.obs[isp,itrans]-1),]=Data[isp,itrans,1:G.tot.obs[isp,itrans],]
+        ipl=ipl+G.tot.obs[isp,itrans]
+      }
+    }
+  }
+  Stacked
+}
+
+
 #' function to produce a design matrix given a dataset and user-specified formula object
 #' @param Cur.dat 	current dataset
 #' @param stacked.names	column names for current dataset

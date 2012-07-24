@@ -166,7 +166,7 @@ hierarchical_DS<-function(Dat,Adj,Area.hab=1,Mapping,Area.trans,Observers,Bin.le
 	require(mc2d)
 	require(MCMCpack)
 	require(compiler)
-	DEBUG=FALSE
+	DEBUG=TRUE
 	
 	Adj=as.matrix(Adj)  #just in case the adjacency matrix = 1 (for 1 transect)
 	S=nrow(Adj)
