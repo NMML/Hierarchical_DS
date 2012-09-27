@@ -6,27 +6,34 @@ the user needs to call themselves.}
 \usage{
   hierarchical_DS(Dat, Adj, Area.hab = 1, Mapping,
     Area.trans, Observers, Bin.length, Hab.cov, Obs.cov,
-    Hab.formula, Det.formula, Cov.prior.pdf,
+    Hab.formula, Det.formula, detect = TRUE, Cov.prior.pdf,
     Cov.prior.parms, Cov.prior.fixed, Cov.prior.n,
     n.obs.cov = 0, pol.eff = c(1:2), point.ind = TRUE,
-    spat.ind = FALSE, fix.tau.nu = FALSE, srr = TRUE,
-    srr.tol = 0.5, misID = FALSE, misID.models = NULL,
-    misID.mat = NULL, Inits = NULL, Levels = NA,
-    grps = FALSE, M, Control, adapt = TRUE, Prior.pars)
+    spat.ind = FALSE, last.ind = FALSE, cor.const = FALSE,
+    fix.tau.nu = FALSE, srr = TRUE, srr.tol = 0.5,
+    misID = FALSE, misID.models = NULL, misID.mat = NULL,
+    misID.symm = TRUE, Inits = NULL, grps = FALSE, M,
+    Control, adapt = TRUE, Prior.pars, post.loss = TRUE)
 }
 \arguments{
-  \item{Dat}{A matrix or data frame with the following
-  columns: (1)transect ID; (2)match number #currently, a
-  maximum of 2 observers on each transect; (3)(Observer
-  ID); (4)(Observation (0/1)); (5) Observed species
-  (integer - the max integer being 'unknown' if applicable)
-  (5-x)(Observer covariates); (x+1)(Distance; if all
-  integers, assumed to be discrete bins; if continuous,
-  assumed standardized to (0,1) interval); (x+2-??)(Group
-  size and other individual covariates thought to influence
-  detection; if group size is one of them, it's assumed to
-  be column x+2); Note that column names can be used to tag
-  covariates}
+  \item{Dat}{A data frame with the following columns:
+  (1)transect ID; (2)match number currently, a maximum of 2
+  observers on each transect; (3)(Observer ID);
+  (4)(Observation (0/1)); (5) Observed species (integer -
+  the max integer being 'unknown' if applicable) [NOTE:
+  modeled as factor, but need to be input as integers to
+  account for unknown species observations] (6-x)(Observer
+  covariates); (things like survey conditions or observer
+  skill; things that don't change during a transect.  Note
+  these also need to be provided in Obs.cov)
+  (x+1)(Distance; if all integers, assumed to be discrete
+  bins; if continuous, assumed standardized to (0,1)
+  interval); (x+2-??)(Group size and other individual
+  covariates thought to influence detection; if group size
+  is one of them, it's assumed to be column x+2); Note that
+  column names can be used to tag covariates, and that
+  object types (e.g. numeric, factor) will be preserved in
+  analysis}
 
   \item{Adj}{Adjacency matrix for habitat cells (diagonal
   matrix implies spatial independence)}
@@ -34,8 +41,8 @@ the user needs to call themselves.}
   \item{Area.hab}{A vector giving the area of each
   geographical strata (default is equal area)}
 
-  \item{Mapping}{A vector giving the habitat cell id # for
-  each transect}
+  \item{Mapping}{A vector giving the habitat cell id number
+  for each transect}
 
   \item{Area.trans}{A vector giving the effective area
   covered by each transect as fraction of total area in the
@@ -64,6 +71,10 @@ the user needs to call themselves.}
   \item{Hab.formula}{A formula vector giving the specific
   model for abundance intensity at the strata level (e.g.,
   ~Vegetation+Latitude) for each species}
+
+  \item{detect}{If TRUE (the default), detectability is
+  estimated; if FALSE, assumes detection probability is 1.0
+  (i.e. a strip transect with perfect detection).}
 
   \item{Det.formula}{A formula giving the model for
   detection probability (e.g.
@@ -126,6 +137,16 @@ the user needs to call themselves.}
   spatial random effects on abundance intensity) default is
   FALSE}
 
+  \item{last.ind}{If point independence is modeled
+  (point.ind=TRUE), last.ind=TRUE will set observer
+  covariance to zero for the greatest distance and maximal
+  correlation in first bin (default is FALSE)}
+
+  \item{cor.const}{If TRUE, forces estimates of correlation
+  associated with point independence to be positive if
+  last.ind==FALSE or negative if last.ind==TRUE (default is
+  FALSE)}
+
   \item{fix.tau.nu}{If TRUE, fixes tau.nu during estimation
   (the value to fix it to can be provided in "Inits")}
 
@@ -150,27 +171,26 @@ the user needs to call themselves.}
   negative number designates which column is to be obtained
   via subtraction}
 
-  \item{misID.models}{A formula vector providing linar
-  model-type formulas for each positive value of misID.mat.
-  If the same model is used in multiple columns it is
-  assumed that all fixed effects (except the intercept) are
-  shared}
+  \item{misID.models}{A formula vector providing linear
+  model-type formulas for each positive value of
+  misID.mat.}
+
+  \item{misID.symm}{If TRUE, the constraint
+  pi^{i|j}=pi^{j|i} is implemented; in this case, entries
+  for pi^{j|i} are all assumed to be given a '-1' in
+  misID.mat}
 
   \item{grps}{If FALSE, detections are assumed to all be of
   individual animals}
 
-  \item{M}{Vector giving maximum possible value for number
-  of groups present in each transect (in practice just set
-  high enough that values at M and above are never sampled
-  during MCMC) and can be fine tuned as needed}
-
-  \item{Levels}{An optional list object with slots
-  corresponding to factor variable names - giving the
-  possible levels for factors (if not included, the
-  function attempts to ascertain from data)}
+  \item{M}{Matrix with species-specific rows giving maximum
+  possible value for number of groups present in each
+  transect (in practice just set high enough that values at
+  M and above are never sampled during MCMC) and can be
+  fine tuned as needed}
 
   \item{Control}{A list object including the following
-  slots: "iter": number of MCMC iterations; "burnin":
+  objects: "iter": number of MCMC iterations; "burnin":
   number of MCMC burnin iterations; "thin": if specified,
   how many iterations to skip between recorded posterior
   samples; "adapt": if adapt==TRUE, this gives the number
@@ -182,13 +202,16 @@ the user needs to call themselves.}
   parameters (dimension = # species X # of unique strata
   sampled) "MH.beta": A matrix of tuning parameters for
   betas of the abundance process (nrows=number of species,
-  ncol = max number of columns of habitat DM); "RJ.N"}{A
-  vector giving the maximum number of additions and
+  ncol = max number of columns of habitat DM); "RJ.N": A
+  matrix giving the maximum number of additions and
   deletions proposed in an iteration of the RJMCMC
-  algorithm for each transect}
+  algorithm for each species (row) and each transect
+  (column) "iter.fix.N": Number of iterations to skip
+  RJMCMC step at beginning of estimation (useful for cases
+  when estimation is unstable)}
 
   \item{Inits}{An (optional) list object providing initial
-  values for model parameters, with the following slots:
+  values for model parameters, with the following objects:
   "Beta.hab": Initial values for habitat linear predictor
   parameters; "Beta.det": Initial values for detection
   model (includes distance, observer, env. variables, and
@@ -208,7 +231,7 @@ the user needs to call themselves.}
   proposal distributions prior to primary MCMC}
 
   \item{Prior.pars}{A list object giving parameters of
-  prior distribution.  Includes the following slots
+  prior distribution.  Includes the following objects
   "a.eta": alpha parameter for prior precision of spatial
   process (assumed Gamma(a.eta,b.eta)) "b.eta": beta
   parameter for prior precision of spatial process (assumed
@@ -216,17 +239,21 @@ the user needs to call themselves.}
   precision of overdispersion process (assumed
   Gamma(a.nu,b.nu)) "b.nu": beta parameter for prior
   precision of overdispersion process (assumed
-  Gamma(a.nu,b.nu)) "beta.sd": standard deviation for
-  regression coefficients (assumed Normal(0,beta.sd^2)}
+  Gamma(a.nu,b.nu)) "beta.tau": prior precision for
+  regression coefficients (assumed
+  Normal(0,(beta.tau*X'X)^(-1))}
+
+  \item{post.loss}{If TRUE, calculates observed values and
+  posterior predictions for detection data to use with
+  posterior predictive loss functions}
 }
 \value{
-  returns a list with the following slots: MCMC: A list
+  returns a list with the following objecs: MCMC: A list
   object containing posterior samples; Accept: A list
   object indicating the number of proposals that were
-  accepted for parameters updated via Metropolis- or
-  Langevin-Hastings algorithms; Control: A list object
-  giving MCMC tuning parameters (which are updated if the
-  'adapt' alorithm is used)
+  accepted for parameters updated via Metropolis-Hastings;
+  Control: A list object giving MCMC tuning parameters
+  (which are updated if the 'adapt' alorithm is used)
 }
 \description{
   Primary function for hierarchical, areal analysis of
@@ -235,75 +262,7 @@ the user needs to call themselves.}
   the only function the user needs to call themselves.
 }
 \examples{
-# This example simulates and analyzes data from 10 transects and one study site; however
-# the time to run is still about ~1 day, so it is recommended NOT to actually run it but do use "data(sim.data)" instead
-S=10
-set.seed(12345)
-n.real.transects=S
-n.transects=S #each transect spans two cells
-#generate Observers matrix
-Observers=matrix(NA,2,n.transects)
-Obs.cov=array(0,dim=c(2,n.transects,1))
-Obs.cov[1,,]=1
-n.obs.cov=0
-for(i in 1:n.real.transects)Observers[,i]=sample(c(1,2),size=2,replace=FALSE)
-# provide levels of for each covariate of type "Factor"
-Levels=list(Observer=c("1","2"),Distance=c("1","2","3","4","5"),Species=c("1","2"))
-n.species=1
-Out=simulate_data(S=S,Observers=Observers,misID=FALSE,n.species=1,Beta.hab=matrix(c(log(20),1),1,2),X.site=cbind(rep(1,S),log(c(1:S)/S)),detect.model=~Observer+Distance+Group,Beta.det=c(1.2,-.4,-.8,-1.1,-1.3,-1.5,.1))  #misID currently not implemented/debugged fully
-Dat=Out$Dat
-Mapping=c(1:S)
-Area.trans=rep(1,S)
-n.bins=length(unique(Dat[,"Distance"]))
-Area.hab=rep(1,S)
-Bin.length=rep(1,n.bins)
-Adj=linear_adj(S)
-
-Hab.cov=data.frame(matrix(log(c(1:S)/S),ncol=1)) #covariate on abundance intensity
-colnames(Hab.cov)=c("Cov1")
-Hab.formula=list(~Cov1)
-Det.formula=~Observer+Distance+Group
-misID.mat=NULL
-misID.models=NULL
-
-#set priors for individual covariates
-Cov.prior.parms=array(0,dim=c(n.species,2,1))
-Cov.prior.parms[1,,1]=c(1.1,1)
-Cov.prior.fixed=matrix(0,n.species,dim(Cov.prior.parms)[3])
-Cov.prior.pdf=Cov.prior.fixed
-Cov.prior.pdf[1]="pois1"
-Cov.prior.n=matrix(2,1,1)
-
-pol.eff=NULL #not currently used since using distance bins
-point.ind=TRUE
-spat.ind=TRUE #dont' include spatial dependence unless there really is spatial structure!
-fix.tau.nu=FALSE
-srr=FALSE
-srr.tol=0.2
-misID=FALSE
-grps=TRUE
-#set initial values for M (max number of groups allowed in a given transect)
-M=t(Out$G.true*3)
-M[which(M<20)]=20
-Control=list(iter=30100,burnin=100,thin=10,MH.cor=0.2,MH.nu=matrix(.1,n.species,n.transects),MH.misID=NULL,RJ.N=matrix(rep(5,S*n.species),n.species,S),adapt=1000)
-#provide initial values for habitat parameters to improve stability
-hab=matrix(0,n.species,2) #covariates are intercept, index,
-hab[1,]=c(log(20),0)
-Inits=list(hab=hab,tau.nu=c(100))
-#additional prior parameters
-Prior.pars=list(a.eta=1,b.eta=.01,a.nu=1,b.nu=.01,beta.sd=100) #(1,.01) prior makes it closer to a uniform distribution near the origin
-adapt=TRUE
-
-set.seed(8327329)    #chain1
-#set.seed(8327330)   #chain2
-
-# CAUTION: this next line takes several hours to run!  Recommend using data(sim_data) instead!
-#Out=hierarchical_DS(Dat=Dat,Adj=Adj,Area.hab=Area.hab,Mapping=Mapping,Area.trans=Area.trans,Observers=Observers,Bin.length=Bin.length,Hab.cov=Hab.cov,Obs.cov=Obs.cov,n.obs.cov=n.obs.cov,Hab.formula=Hab.formula,Det.formula=Det.formula,Cov.prior.pdf=Cov.prior.pdf,Cov.prior.parms=Cov.prior.parms,Cov.prior.fixed=Cov.prior.fixed,Cov.prior.n=Cov.prior.n,pol.eff=NULL,point.ind=TRUE,spat.ind=spat.ind,fix.tau.nu=fix.tau.nu,srr=srr,srr.tol=srr.tol,misID=misID,Inits=Inits,grps=grps,M=M,Control=Control,Levels=Levels,adapt=TRUE,Prior.pars=Prior.pars,misID.mat=misID.mat,misID.models=misID.models)
-data(simdata)
-#look at some plots and summary statistics
-plot_obs_pred(simdata)
-#table(simdata$MCMC,a=0.025)
-dens.plot(simdata$MCMC)
+print("example analysis included in the script example_analysis.R")
 }
 \author{
   Paul B. Conn \email{paul.conn@noaa.gov}

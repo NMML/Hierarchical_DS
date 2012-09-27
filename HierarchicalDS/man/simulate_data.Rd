@@ -5,9 +5,11 @@ intensity, no assumed spatial structure, and point independence.  If no paramete
 \usage{
   simulate_data(S, Observers, misID = TRUE, X.site = NULL,
     n.species = 2, Beta.hab = NULL, Beta.det = NULL,
-    detect.model = ~Observer + Distance + Group + Species,
+    detect.model = ~Observer + Distance + Group,
     dist.cont = FALSE, n.bins = 5, cor.par = 0.5,
-    Grp.par = c(3, 1), Conf.model = NULL, Conf.par = NULL)
+    Grp.par = c(3, 1), misID.models = NULL,
+    misID.par = NULL, misID.mat = NULL, misID.symm = TRUE,
+    tau = 10)
 }
 \arguments{
   \item{S}{number of spatial strata (a single transect is
@@ -54,16 +56,29 @@ intensity, no assumed spatial structure, and point independence.  If no paramete
   Poisson). Default is 3 and 1, corresponding to mean group
   sizes of 4 and 2 for each species}
 
-  \item{Conf.model}{If misID=TRUE, this gives a list vector
-  with formulas for the confusion matrix. Formulas are
-  provided for "getting it right" and "getting an unknown".
-  Default is c(~Observer+Group+Distance+Species,
-  ~Observer). The same models are assumed for each
-  species.}
+  \item{misID.mat}{With true state on rows and assigned
+  state on column, each positive entry provides an index to
+  misID.models (i.e. what model to assume on multinomial
+  logit space); a 0 indicates an impossible assigment; a
+  negative number designates which column is to be obtained
+  via subtraction}
 
-  \item{Conf.par}{If misID=TRUE, ths is a list vector with
-  parameters for each confusion model.  Default is
-  list(c(2,.2,.4,.3,-.1,-.2,-.4,-.8,.5),c(-1,-.2,.2))}
+  \item{misID.par}{A list, each element of which gives the
+  parameters associated with each entry in misID.models}
+
+  \item{misID.models}{A formula vector providing linear
+  model-type formulas for each positive value of misID.mat.
+  If the same model is used in multiple columns it is
+  assumed that all fixed effects (except the intercept) are
+  shared}
+
+  \item{misID.symm}{If TRUE, the constraint
+  pi^{i|j}=pi^{j|i} is implemented; in this case, entries
+  for pi^{j|i} are all assumed to be = pi^{i|j} (default is
+  TRUE)}
+
+  \item{tau}{precision of the ICAR model(a large number
+  indicates approximate conditional independence)}
 }
 \value{
   a distance sampling dataset

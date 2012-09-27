@@ -1,0 +1,23 @@
+
+Release notes for hierarchicalDS  Sept 26, 2012
+Paul Conn paul.conn@noaa.gov 
+
+v2.0 Release
+
+-Species misclassification models now implemented
+-Removes dependency on ggplot2
+-Input data are now required to be in data.frame form; "Levels" as an input is deprecated
+-Resolves a few bugs when trying to analyze data from >1 species
+-Resolves a few bugs when trying to analyze data when the # of observers varies between transects
+-Number of spatial strata now defined by "Mapping" instead of "Adj" input
+-Resolved a bug that led to incorrect calculations when there was greater than one transect in a spatial grid cell
+-Resolved a bug with translation of MCMC output to a coda object when there is only one grid cell (i.e. for data pooled over space)
+-Resolves issues with covariate updates when the latent # of groups in a transect equals 0
+-Incorporates a greater # of options for point independence; in particular, full independence can be last bin or first bin,
+ and linear change on log scale can be positive or negative (with options to fix the sign)
+-Implemented posterior predictive loss criterion for model discrimination (sensu Gelfand and Ghosh 1998) in function "post_loss"
+-Incorporates additional Control variable "iter.fix.N" which specifies the number of iterations to estimate parameters while
+ keeping abundance fixed.  This can help stabilize estimation when data are sparse
+-The prior distribution for habitat beta parameters is now assumed to be Normal(0,(tau_beta*X'X)^(-1)) where tau_beta is provided by the user
+ This scaling helps mixing and provides structure on beta parameters; previous implementation had a bug that the prior sd could be specified
+ for beta parameters but in effect an improper prior was always used during estimation.

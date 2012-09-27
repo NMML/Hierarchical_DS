@@ -16,14 +16,15 @@
 #' @param misID.par A list, each element of which gives the parameters associated with each entry in misID.models 
 #' @param misID.models A formula vector providing linear model-type formulas for each positive value of misID.mat.  If the same model is used in multiple columns it is assumed that all fixed effects (except the intercept) are shared
 #' @param misID.symm If TRUE, the constraint pi^{i|j}=pi^{j|i} is implemented; in this case, entries for pi^{j|i} are all assumed to be = pi^{i|j} (default is TRUE)
-#' @par
+#' @param tau precision of the ICAR model(a large number indicates approximate conditional independence)
 #' @return a distance sampling dataset
 #' @export
 #' @keywords distance sampling, simulation
 #' @author Paul B. Conn
-simulate_data<-function(S,Observers,misID=TRUE,X.site=NULL,n.species=2,Beta.hab=NULL,Beta.det=NULL,detect.model=~Observer+Distance+Group+Species,dist.cont=FALSE,n.bins=5,cor.par=0.5,Grp.par=c(3,1),misID.models=NULL,misID.par=NULL,misID.mat=NULL,misID.symm=TRUE){
+simulate_data<-function(S,Observers,misID=TRUE,X.site=NULL,n.species=2,Beta.hab=NULL,Beta.det=NULL,detect.model=~Observer+Distance+Group,dist.cont=FALSE,n.bins=5,cor.par=0.5,Grp.par=c(3,1),misID.models=NULL,misID.par=NULL,misID.mat=NULL,misID.symm=TRUE,tau=10){
 	require(mvtnorm)
-	
+
+	if((sqrt(S)%%1)!=0)cat("Error: S must be a square #")
 	if(n.species>2)cat("\n Error: current max species is 2 \n")
 	if(n.species==1 & misID==TRUE){
 		cat("\n n.speces=1 so misID set to FALSE \n")
@@ -31,14 +32,11 @@ simulate_data<-function(S,Observers,misID=TRUE,X.site=NULL,n.species=2,Beta.hab=
 	}
 	if((n.bins!=5 | dist.cont==TRUE) & (is.null(Beta.det)==TRUE))cat("\n Error: if using continuous distances or a non-default distance bin #, you must input Beta.det \n")
 	#process parameters
-	if(is.null(X.site)==TRUE)X.site=cbind(rep(1,S),log(c(1:S)/S),(log(c(1:S)/S))^2) #covariate on abundance intensity, sp 1
+	if(is.null(X.site)==TRUE)X.site=cbind(rep(1,S),rep(log(c(1:sqrt(S)/sqrt(S))),each=sqrt(S))) #covariate on abundance intensity
 	if(is.null(Beta.hab)==TRUE){
-		Beta.hab=matrix(0,n.species,3)
-		#Beta.hab[1,]=c(log(40),1,0) 
-		Beta.hab[1,]=c(log(100),1,0) 
-		if(n.species==2)Beta.hab[2,]=c(log(10),-2,-1)
-		Beta.hab[1,]=c(log(40),0,0) 
-		if(n.species==2)Beta.hab[2,]=c(log(10),0,0)
+		Beta.hab=matrix(0,n.species,2)
+		Beta.hab[1,]=c(log(40),1) 
+		if(n.species==2)Beta.hab[2,]=c(log(10),0)
 	}
 	
 	#detection parameters
@@ -47,11 +45,23 @@ simulate_data<-function(S,Observers,misID=TRUE,X.site=NULL,n.species=2,Beta.hab=
 	factor.ind=list(Observer=TRUE,Distance=(dist.cont==FALSE),Group=FALSE,Species=TRUE)
 	
 	#if(is.null(Beta.det)==TRUE)Beta.det=c(10,-.2,-.4,-.6,-.9,-1.1,-1.3,.1,.3)  #obs 1 (bin 1), obs 2, obs 3, offset for bin 2, ..., offset for bin n.bins, grp size,species
-	if(is.null(Beta.det)==TRUE)Beta.det=c(1.2,-.2,-.4,-.6,-.9,-1.1,-1.3,.1,.3)  #obs 1 (bin 1), obs 2, obs 3, offset for bin 2, ..., offset for bin n.bins, grp size,species
+	if(is.null(Beta.det)==TRUE)Beta.det=c(1.2,-.2,-.4,-.6,-.9,-1.1,-1.3,.1)  #obs 1 (bin 1), obs 2, obs 3, offset for bin 2, ..., offset for bin n.bins, grp size
+
+	Adj=square_adj(sqrt(S))
+	Q=-Adj
+	diag(Q)=apply(Adj,2,'sum')
+	Q=Matrix(tau*Q)
+	#simulate icar process
+	Eta1=rrw(Q)
+	Eta2=rrw(Q)
+	#Eta=rep(0,S)
 	
-	N1=round(exp(X.site%*%Beta.hab[1,]))
+	SP1=matrix(Eta1,sqrt(S),sqrt(S))
+	SP2=matrix(Eta1,sqrt(S),sqrt(S))
+	
+	N1=round(exp(X.site%*%Beta.hab[1,]+as.vector(SP1)))
 	N2=N1*0
-	if(n.species==2)N2=round(exp(X.site%*%Beta.hab[2,]))
+	if(n.species==2)N2=round(exp(X.site%*%Beta.hab[2,]+as.vector(SP2)))
 	cat(paste("\n True G, sp 1 = ",N1,'\n\n'))
 	cat(paste("\n True G.tot, sp 1= ",sum(N1),'\n'))
 	if(n.species==2){
@@ -79,27 +89,33 @@ simulate_data<-function(S,Observers,misID=TRUE,X.site=NULL,n.species=2,Beta.hab=
 	pl=1
 	for(i in 1:S){
 		cur.Observers=Observers[,i]
+		n.observers=2-is.na(cur.Observers[2])
 		if(N1[i]>0){
 			for(j in 1:N1[i]){
 				if(dist.cont==TRUE)dist=runif(1)
 				else dist=sample(c(1:n.bins),1)
 				grp.size=rpois(1,Grp.par[1])+1
 				Dat1=matrix(c(cur.Observers[1],dist,grp.size,1),1,4)
-				Dat2=Dat1
-				Dat2[1]=cur.Observers[2]
+				if(n.observers==2){
+          Dat2=Dat1
+				  Dat2[1]=cur.Observers[2]
+          X2=get_mod_matrix(Cur.dat=Dat2,stacked.names=c("Observer","Distance","Group","Species"),factor.ind=factor.ind,Det.formula=detect.model,Levels=Levels)
+				}
 				X1=get_mod_matrix(Cur.dat=Dat1,stacked.names=c("Observer","Distance","Group","Species"),factor.ind=factor.ind,Det.formula=detect.model,Levels=Levels)
-				X2=get_mod_matrix(Cur.dat=Dat2,stacked.names=c("Observer","Distance","Group","Species"),factor.ind=factor.ind,Det.formula=detect.model,Levels=Levels)
 				Dat[pl,1]=i
 				Dat[pl,2]=cur.Observers[1]
 				Dat[pl,3]=cur.Observers[2]
 				Dat[pl,6]=dist
 				Dat[pl,7]=grp.size
 				Dat[pl,8]=1
-				mu1=X1%*%Beta.det
-				mu2=X2%*%Beta.det
 				if(dist.cont==FALSE)cur.cor=(dist-1)/(n.bins-1)*cor.par
 				else cur.cor=dist*cor.par
-				Dat[pl,4:5]=rmvnorm(1,c(mu1,mu2),matrix(c(1,cur.cor,cur.cor,1),2,2))
+				mu1=X1%*%Beta.det
+        if(n.observers==2){
+				  mu2=X2%*%Beta.det
+				  Dat[pl,4:5]=rmvnorm(1,c(mu1,mu2),matrix(c(1,cur.cor,cur.cor,1),2,2))
+        }
+        else Dat[pl,4:5]=c(rnorm(1,mu1,1),NA)
 				Dat[pl,4:5]=(Dat[pl,4:5]>0)*1.0
 				pl=pl+1
 			}
@@ -110,22 +126,27 @@ simulate_data<-function(S,Observers,misID=TRUE,X.site=NULL,n.species=2,Beta.hab=
 				else dist=sample(c(1:n.bins),1)
 				grp.size=rpois(1,Grp.par[2])+1
 				Dat1=matrix(c(cur.Observers[1],dist,grp.size,2),1,4)
-				Dat2=Dat1
-				Dat2[1]=cur.Observers[2]
 				X1=get_mod_matrix(Cur.dat=Dat1,stacked.names=c("Observer","Distance","Group","Species"),factor.ind=factor.ind,Det.formula=detect.model,Levels=Levels)
-				X2=get_mod_matrix(Cur.dat=Dat2,stacked.names=c("Observer","Distance","Group","Species"),factor.ind=factor.ind,Det.formula=detect.model,Levels=Levels)
-				Dat[pl,1]=i
+				if(n.observers==2){
+				  Dat2=Dat1
+				  Dat2[1]=cur.Observers[2]
+				  X2=get_mod_matrix(Cur.dat=Dat2,stacked.names=c("Observer","Distance","Group","Species"),factor.ind=factor.ind,Det.formula=detect.model,Levels=Levels)
+				}
+        Dat[pl,1]=i
 				Dat[pl,2]=cur.Observers[1]
 				Dat[pl,3]=cur.Observers[2]
 				Dat[pl,6]=dist
 				Dat[pl,7]=grp.size
 				Dat[pl,8]=2
 				mu1=X1%*%Beta.det
-				mu2=X2%*%Beta.det
 				if(dist.cont==FALSE)cur.cor=(dist-1)/(n.bins-1)*cor.par
 				else cur.cor=dist*cor.par
-				Dat[pl,4:5]=rmvnorm(1,c(mu1,mu2),matrix(c(1,cur.cor,cur.cor,1),2,2))
-				Dat[pl,4:5]=(Dat[pl,4:5]>0)*1.0
+        if(n.observers==2){
+          mu2=X2%*%Beta.det
+          Dat[pl,4:5]=rmvnorm(1,c(mu1,mu2),matrix(c(1,cur.cor,cur.cor,1),2,2))          
+        }
+        else Dat[pl,4:5]=c(rnorm(1,mu1,1),NA)         
+        Dat[pl,4:5]=c(Dat[pl,4:5]>0)*1.0
 				pl=pl+1
 			}
 		}
@@ -159,6 +180,12 @@ simulate_data<-function(S,Observers,misID=TRUE,X.site=NULL,n.species=2,Beta.hab=
 	colnames(Dat2)=c("Transect","Match","Observer","Obs","Distance","Group","Species")
 	Dat2[,"Observer"]=as.factor(Dat2[,"Observer"])
 	Dat2[,"Distance"]=as.factor(Dat2[,"Distance"])
+  
+  #get rid of NA records for transects where there was only one observer
+  if(sum(is.na(Dat2[,4]))>0){
+    which.NA=which(is.na(Dat2[,4]))
+    Dat2=Dat2[-which.NA,]
+  }
 	
 	Dat=Dat2
 	True.species=Dat[,"Species"]

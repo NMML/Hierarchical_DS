@@ -2,27 +2,27 @@
 #' pre-processes data and calls other functions to perform the analysis, and is the only function
 #' the user needs to call themselves. 
 #'
-#' @param Dat 	A matrix or data frame with the following columns:
+#' @param Dat 	A data frame with the following columns:
 #' 		(1)transect ID; 
-#' 		(2)match number  #currently, a maximum of 2 observers on each transect;
+#' 		(2)match number  currently, a maximum of 2 observers on each transect;
 #' 		(3)(Observer ID);
 #' 		(4)(Observation (0/1));
-#' 		(5) Observed species (integer - the max integer being 'unknown' if applicable)
-#' 		(5-x)(Observer covariates); 
+#' 		(5) Observed species (integer - the max integer being 'unknown' if applicable) [NOTE: modeled as factor, but need to be input as integers to account for unknown species observations]
+#' 		(6-x)(Observer covariates); (things like survey conditions or observer skill; things that don't change during a transect.  Note these also need to be provided in Obs.cov)
 #' 		(x+1)(Distance; if all integers, assumed to be discrete bins; if continuous, assumed standardized to (0,1) interval);
 #' 		(x+2-??)(Group size and other individual covariates thought to influence detection; if group size is one of them, it's assumed to be column x+2);
-#' 		Note that column names can be used to tag covariates
+#' 		Note that column names can be used to tag covariates, and that object types (e.g. numeric, factor) will be preserved in analysis
 #' @param Adj   Adjacency matrix for habitat cells (diagonal matrix implies spatial independence)
 #' @param Area.hab   A vector giving the area of each geographical strata (default is equal area)
-#' @param Mapping  A vector giving the habitat cell id # for each transect
+#' @param Mapping  A vector giving the habitat cell id number for each transect
 #' @param Area.trans	A vector giving the effective area covered by each transect as fraction of total area in the strata it is located
 #' @param Observers	A (2 x number of transects) matrix giving the observers IDs that were present for each transect (the 2nd row is to contain NAs if only 1 observer was present)
-#' @param Bin.length	If distances are binned, this vector gives the relative length of each distance bin (vector must sum to one)
+#' @param Bin.length	If distances are binned, this vector gives the relative length of each distance bin (vector must sum to one) 
 #' @param n.obs.cov	Number of observer covariates (e.g., seat position, visibility, etc.)
 #' @param Hab.cov	A data.frame object giving covariates thought to influence abundance intensity at strata level; column names index individual covariates
 #' @param Obs.cov  A (max # of observers X # of transects X # of observer covariates) size array giving observer covariate values for each transect flown
 #' @param Hab.formula	A formula vector giving the specific model for abundance intensity at the strata level (e.g., ~Vegetation+Latitude) for each species
-#' @param detect If TRUE (the default), detectability is estimated; if FALSE, assumes detection probability is 1.0 (i.e. a census).  
+#' @param detect If TRUE (the default), detectability is estimated; if FALSE, assumes detection probability is 1.0 (i.e. a strip transect with perfect detection).  
 #' @param Det.formula  A formula giving the model for detection probability (e.g. ~Distance+Group+Visibility+Observer). Note that
 #'				there are several "reserved" variable names.  "Distance", "Observer", "Species", and "Group" are reserved variable names.
 #' @param Cov.prior.pdf	If individual covariates are provided, this character matrix gives the form of the prior pdfs for each covariate
@@ -44,6 +44,8 @@
 #' @param pol.eff 	For continuous distance, which polynomial degrees to model (default is c(1:2); an intercept is always estimated when "Distance" is listed in "Det.formula")
 #' @param point.ind  Estimate a correlation parameter for detection probability that's an increasing function of distance?
 #' @param spat.ind	If TRUE, assumes spatial independence (no spatial random effects on abundance intensity) default is FALSE
+#' @param last.ind If point independence is modeled (point.ind=TRUE), last.ind=TRUE will set observer covariance to zero for the greatest distance and maximal correlation in first bin (default is FALSE)
+#' @param cor.const If TRUE, forces estimates of correlation associated with point independence to be positive if last.ind==FALSE or negative if last.ind==TRUE (default is FALSE)
 #' @param fix.tau.nu  If TRUE, fixes tau.nu during estimation (the value to fix it to can be provided in "Inits")
 #' @param srr  If TRUE, uses spatially retricted regression, where smoothing occurs on residuals and all spatial effects are orthogonal to the linear predictors (by default, analysis is limited to the highest 50 eigenvalues of the decomposition of the residual projection matrix to reduce computing time)
 #' @param srr.tol Threshold eigenvalue level for SRR; only eigenvectors with higher eigenvalues than srr.tol are included in SRR formulation (default is 0.5)
@@ -52,10 +54,8 @@
 #' @param misID.models A formula vector providing linear model-type formulas for each positive value of misID.mat.  
 #' @param misID.symm If TRUE, the constraint pi^{i|j}=pi^{j|i} is implemented; in this case, entries for pi^{j|i} are all assumed to be given a '-1' in misID.mat
 #' @param grps 	If FALSE, detections are assumed to all be of individual animals
-#' @param M		Vector giving maximum possible value for number of groups present in each transect (in practice just set high enough that values at M and above are never sampled during MCMC)
-#' 			and can be fine tuned as needed
-#' @param Levels An optional list object with slots corresponding to factor variable names - giving the possible levels for factors (if not included, the function attempts to ascertain from data)
-#' @param Control	A list object including the following slots:
+#' @param M		Matrix with species-specific rows giving maximum possible value for number of groups present in each transect (in practice just set high enough that values at M and above are never sampled during MCMC) and can be fine tuned as needed
+#' @param Control	A list object including the following objects:
 #'	"iter": number of MCMC iterations;
 #'  "burnin": number of MCMC burnin iterations;
 #'	"thin": if specified, how many iterations to skip between recorded posterior samples;
@@ -64,7 +64,8 @@
 #'	"MH.nu": MH tuning parameters for Nu parameters (dimension = # species X # of unique strata sampled)
 #'	"MH.beta": A matrix of tuning parameters for betas of the abundance process (nrows=number of species, ncol = max number of columns of habitat DM);
 #'	"RJ.N": A matrix giving the maximum number of additions and deletions proposed in an iteration of the RJMCMC algorithm for each species (row) and each transect (column)
-#' @param Inits	An (optional) list object providing initial values for model parameters, with the following slots:
+#'  "iter.fix.N": Number of iterations to skip RJMCMC step at beginning of estimation (useful for cases when estimation is unstable)
+#' @param Inits	An (optional) list object providing initial values for model parameters, with the following objects:
 #' "Beta.hab": Initial values for habitat linear predictor parameters;
 #'	"Beta.det": Initial values for detection model (includes distance, observer, env. variables, and individual covariates);
 #'	"cor.par": If point.ind==TRUE, this is an initial value for the correlation parameter (which must be in (0,1));	
@@ -74,102 +75,33 @@
 #'	"tau.nu": Precision for Nu (overdispersion relative to the Poisson distribution)
 #'  One need not specify an initial value for all parameter types (if less are specified, the others are generated randomly)
 #' @param adapt	If adapt==TRUE, run an additional Control$adapt number of MCMC iterations to optimize MCMC proposal distributions prior to primary MCMC
-#' @param Prior.pars	A list object giving parameters of prior distribution.  Includes the following slots
+#' @param Prior.pars	A list object giving parameters of prior distribution.  Includes the following objects
 #'	"a.eta": alpha parameter for prior precision of spatial process (assumed Gamma(a.eta,b.eta))
 #'  "b.eta": beta parameter for prior precision of spatial process (assumed Gamma(a.eta,b.eta))
 #'	"a.nu": alpha parameter for prior precision of overdispersion process (assumed Gamma(a.nu,b.nu))
 #'	"b.nu": beta parameter for prior precision of overdispersion process (assumed Gamma(a.nu,b.nu)) 
-#'	"beta.sd": standard deviation for regression coefficients (assumed Normal(0,beta.sd^2)
-#' @return returns a list with the following slots: 
+#'	"beta.tau": prior precision for regression coefficients (assumed Normal(0,(beta.tau*X'X)^(-1))
+#' @param post.loss If TRUE, calculates observed values and posterior predictions for detection data to use with posterior predictive loss functions
+#' @return returns a list with the following objecs: 
 #' 	MCMC: A list object containing posterior samples;
-#'  Accept: A list object indicating the number of proposals that were accepted for parameters updated via Metropolis- or Langevin-Hastings algorithms;
+#'  Accept: A list object indicating the number of proposals that were accepted for parameters updated via Metropolis-Hastings;
 #'  Control: A list object giving MCMC tuning parameters (which are updated if the 'adapt' alorithm is used)
 #' @export
 #' @import Matrix
 #' @keywords areal model, data augmentation, distance sampling, mcmc, reversible jump
 #' @author Paul B. Conn \email{paul.conn@@noaa.gov} 
-#' @examples 
-#' # This example simulates and analyzes data from 10 transects and one study site; however
-#' # the time to run is still about ~1 day, so it is recommended NOT to actually run it but do use "data(sim.data)" instead
-#' S=10 
-#' set.seed(12345) 
-#' n.real.transects=S
-#' n.transects=S #each transect spans two cells
-#' #generate Observers matrix
-#' Observers=matrix(NA,2,n.transects)
-#' Obs.cov=array(0,dim=c(2,n.transects,1))
-#' Obs.cov[1,,]=1
-#' n.obs.cov=0  
-#' for(i in 1:n.real.transects)Observers[,i]=sample(c(1,2),size=2,replace=FALSE)
-#' # provide levels of for each covariate of type "Factor"
-#' Levels=list(Observer=c("1","2"),Distance=c("1","2","3","4","5"),Species=c("1","2"))
-#' n.species=1
-#' Out=simulate_data(S=S,Observers=Observers,misID=FALSE,n.species=1,Beta.hab=matrix(c(log(20),1),1,2),X.site=cbind(rep(1,S),log(c(1:S)/S)),detect.model=~Observer+Distance+Group,Beta.det=c(1.2,-.4,-.8,-1.1,-1.3,-1.5,.1))  #misID currently not implemented/debugged fully
-#' Dat=Out$Dat
-#' Mapping=c(1:S)
-#' Area.trans=rep(1,S)
-#' n.bins=length(unique(Dat[,"Distance"]))
-#' Area.hab=rep(1,S)
-#' Bin.length=rep(1,n.bins)
-#' Adj=linear_adj(S)
-#' 
-#' Hab.cov=data.frame(matrix(log(c(1:S)/S),ncol=1)) #covariate on abundance intensity
-#' colnames(Hab.cov)=c("Cov1")
-#' Hab.formula=list(~Cov1)
-#' Det.formula=~Observer+Distance+Group
-#' misID.mat=NULL
-#' misID.models=NULL
-#' 
-#' #set priors for individual covariates
-#' Cov.prior.parms=array(0,dim=c(n.species,2,1))
-#' Cov.prior.parms[1,,1]=c(1.1,1)
-#' Cov.prior.fixed=matrix(0,n.species,dim(Cov.prior.parms)[3])
-#' Cov.prior.pdf=Cov.prior.fixed
-#' Cov.prior.pdf[1]="pois1"
-#' Cov.prior.n=matrix(2,1,1)
-#' 
-#' pol.eff=NULL #not currently used since using distance bins
-#' point.ind=TRUE
-#' spat.ind=TRUE #dont' include spatial dependence unless there really is spatial structure!
-#' fix.tau.nu=FALSE
-#' srr=FALSE
-#' srr.tol=0.2
-#' misID=FALSE
-#' grps=TRUE
-#' #set initial values for M (max number of groups allowed in a given transect)
-#' M=t(Out$G.true*3)
-#' M[which(M<20)]=20
-#' Control=list(iter=30100,burnin=100,thin=10,MH.cor=0.2,MH.nu=matrix(.1,n.species,n.transects),MH.misID=NULL,RJ.N=matrix(rep(5,S*n.species),n.species,S),adapt=1000)
-#' #provide initial values for habitat parameters to improve stability
-#' hab=matrix(0,n.species,2) #covariates are intercept, index, 
-#' hab[1,]=c(log(20),0)
-#' Inits=list(hab=hab,tau.nu=c(100)) 
-#' #additional prior parameters
-#' Prior.pars=list(a.eta=1,b.eta=.01,a.nu=1,b.nu=.01,beta.sd=100) #(1,.01) prior makes it closer to a uniform distribution near the origin
-#' adapt=TRUE
-#' 
-#' set.seed(8327329)    #chain1
-#' #set.seed(8327330)   #chain2
-#' 
-#' # CAUTION: this next line takes several hours to run!  Recommend using data(sim_data) instead!
-#' #Out=hierarchical_DS(Dat=Dat,Adj=Adj,Area.hab=Area.hab,Mapping=Mapping,Area.trans=Area.trans,Observers=Observers,Bin.length=Bin.length,Hab.cov=Hab.cov,Obs.cov=Obs.cov,n.obs.cov=n.obs.cov,Hab.formula=Hab.formula,Det.formula=Det.formula,Cov.prior.pdf=Cov.prior.pdf,Cov.prior.parms=Cov.prior.parms,Cov.prior.fixed=Cov.prior.fixed,Cov.prior.n=Cov.prior.n,pol.eff=NULL,point.ind=TRUE,spat.ind=spat.ind,fix.tau.nu=fix.tau.nu,srr=srr,srr.tol=srr.tol,misID=misID,Inits=Inits,grps=grps,M=M,Control=Control,Levels=Levels,adapt=TRUE,Prior.pars=Prior.pars,misID.mat=misID.mat,misID.models=misID.models)
-#
-#' data(simdata)
-#' #look at some plots and summary statistics
-#' plot_obs_pred(simdata)
-#' #table(simdata$MCMC,a=0.025)
-#' dens.plot(simdata$MCMC)
-hierarchical_DS<-function(Dat,Adj,Area.hab=1,Mapping,Area.trans,Observers,Bin.length,Hab.cov,Obs.cov,Hab.formula,Det.formula,detect=TRUE,Cov.prior.pdf,Cov.prior.parms,Cov.prior.fixed,Cov.prior.n,n.obs.cov=0,pol.eff=c(1:2),point.ind=TRUE,spat.ind=FALSE,fix.tau.nu=FALSE,srr=TRUE,srr.tol=0.5,misID=FALSE,misID.models=NULL,misID.mat=NULL,misID.symm=TRUE,Inits=NULL,Levels=NA,grps=FALSE,M,Control,adapt=TRUE,Prior.pars){
+#' @examples print("example analysis included in the script example_analysis.R")
+hierarchical_DS<-function(Dat,Adj,Area.hab=1,Mapping,Area.trans,Observers,Bin.length,Hab.cov,Obs.cov,Hab.formula,Det.formula,detect=TRUE,Cov.prior.pdf,Cov.prior.parms,Cov.prior.fixed,Cov.prior.n,n.obs.cov=0,pol.eff=c(1:2),point.ind=TRUE,spat.ind=FALSE,last.ind=FALSE,cor.const=FALSE,fix.tau.nu=FALSE,srr=TRUE,srr.tol=0.5,misID=FALSE,misID.models=NULL,misID.mat=NULL,misID.symm=TRUE,Inits=NULL,grps=FALSE,M,Control,adapt=TRUE,Prior.pars,post.loss=TRUE){
 	require(mvtnorm)
 	require(Matrix)
 	require(truncnorm)
 	require(mc2d)
 	require(MCMCpack)
 	require(compiler)
-	DEBUG=TRUE
+	DEBUG=FALSE
 	
 	Adj=as.matrix(Adj)  #just in case the adjacency matrix = 1 (for 1 transect)
-	S=nrow(Adj)
+	S=length(Area.hab)
 	n.transects=length(Area.trans)
 	n.ind.cov=ncol(Dat)-(6+n.obs.cov) #number of individual covariates 
 	n.species=length(unique(Dat[,"Species"]))
@@ -184,11 +116,16 @@ hierarchical_DS<-function(Dat,Adj,Area.hab=1,Mapping,Area.trans,Observers,Bin.le
 	if(n.obs.max>2)cat("\n ERROR: Current max number of observers per transect is 2\n")
 	if(nrow(Control$MH.nu)!=n.species)cat("\n ERROR: Control$MH.nu does not have # rows = number of species \n")
 	if(nrow(M)!=n.species)cat("\n ERROR: M does not have nrow = number of species \n")
-	if(ncol(M)!=n.transects)cat("\n ERROR: M does not have ncol = number of transects \n")	
-		
-	#More later...	
+	if(ncol(M)!=n.transects)cat("\n ERROR: M does not have ncol = number of transects \n")
+  if(ncol(Control$RJ.N)!=n.transects)cat("\n ERROR: # columns of Control$RJ.N not = number of transects \n")		
 
-	Dat[,3]=as.factor(Dat[,3])  
+  #More later...	
+  
+  #adust M to be divisible by 2
+  M[which(M%%2==1)]=M[which(M%%2==1)]+1
+
+	if(length(unique(Dat[,3]))>1)Dat[,3]=as.factor(Dat[,3])  #convert observer to factors if not already
+	if(length(unique(Dat[,5]))>1)Dat[,5]=as.factor(Dat[,5])  #convert species to factors if not already
 	cur.colnames=colnames(Dat)
 	cur.colnames[6+n.obs.cov]="Distance"
 	if(grps==TRUE)cur.colnames[7+n.obs.cov]="Group"
@@ -196,25 +133,65 @@ hierarchical_DS<-function(Dat,Adj,Area.hab=1,Mapping,Area.trans,Observers,Bin.le
 	colnames(Dat)=cur.colnames
 	i.binned=0
 	n.bins=NULL
-	if(is.factor(Dat[1,"Distance"])==1){
+	if(is.factor(Dat[1,"Distance"])==1 | sum(as.numeric(Dat[,"Distance"])%%1)==0){
 		i.binned=1
 		n.bins=length(unique(Dat[,"Distance"]))
+    Dat[,"Distance"]=as.factor(Dat[,"Distance"])
 	}
+  
+  if(i.binned==1)if(length(Bin.length)!=n.bins)cat("\n ERROR: length of Bin.length must equal n.bins")
 
+
+	Dat[Dat[,"Obs"]==0,"Species"]=Dat[Dat[,"Obs"]==1,"Species"][1]  #just set missing species to the first 'real' species
+  Dat[,"Species"]=as.factor(as.character(Dat[,"Species"]))  #reestablish levels
+  #convert character entries to factors
+  for(i in 1:ncol(Dat))if(is.character(Dat[,i])&length(unique(Dat[,i]))>1)Dat[,i]=as.factor(Dat[,i])
+  
+  #for factors, determine levels, save labels, and convert to numeric
 	factor.ind=sapply(Dat[1,],is.factor)
-	
+  which.factors=which(factor.ind==1)
+  n.factors=sum(factor.ind)
+  
+  Factor.labels=vector("list",n.factors)
+  for(i in 1:n.factors){
+    Factor.labels[[i]]=levels(Dat[,which.factors[i]])
+  }
+  
 	Dat.num=Dat
-	for(icol in 1:ncol(Dat)){
-		Dat.num[,icol]=as.numeric(as.character(Dat[,icol]))
+  #if(sum(Dat[,"Obs"]==0)>0)Dat.num[Dat[,"Obs"]==0,"Species"]=0  #if a missing obs, set species=0
+	for(icol in which.factors){
+		Dat.num[,icol]=as.numeric((Dat[,icol]))
 	}
-	Dat.num=as.data.frame(Dat.num)
+  Levels=vector("list",n.factors)
+	for(i in 1:n.factors){
+	  Levels[[i]]=sort(unique(Dat.num[,which.factors[i]]))
+	}
+	names(Levels)=colnames(Dat[,which.factors])
+	if(misID)Levels$Species=Levels$Species[-which(Levels$Species==(n.species+1))]
+  
+  #update observer covariate values to reflect new factor values going from 1,2,...
+	for(icov in 1:n.obs.cov){
+	  if((icov+5)%in%which.factors){
+      Obs.cov[,,icov]=as.factor(as.numeric(as.factor(Obs.cov[,,icov])))
+	  }
+	}	
 	
 	n.Observers=apply(1-is.na(Observers),2,'sum')
-	M=M*n.Observers	#actual dimension of M goes up if >1 observer 
-	max.M=max(M)
+	if(point.ind==TRUE & max(n.Observers)==1)cat("\n ERROR: can't have point independence when there are no transects with 2 observers \n")
 	
+	M=t(t(M)*n.Observers)	#actual dimension of M goes up if >1 observer 
+	max.M=max(M)
+	Observers.num=matrix(as.numeric(as.factor(Observers)),dim(Observers))
+  
 	#add an additional column for "True species" and fill
-	True.sp=Dat.num[,"Species"]
+	True.sp=Dat.num[,"Species"]*Dat.num[,"Obs"]
+  if(sum(True.sp==0)>0 | sum(is.na(Dat.num[,"Species"]))>0){  #if some of the species values are missing, set to value for other observer 
+    True.sp.miss=which(True.sp==0 | is.na(True.sp)==1)
+    for(i in 1:length(True.sp.miss)){
+      if(True.sp.miss[i]%%2==1)True.sp[True.sp.miss[i]]=True.sp[True.sp.miss[i]+1]
+      else True.sp[True.sp.miss[i]]=True.sp[True.sp.miss[i]-1]
+    }
+  }
 	Obs.sp=tabulate(True.sp)[1:n.species]
 	unk.ind=which(True.sp==(n.species+1))
 	if(length(unk.ind)>0)True.sp[unk.ind]=sample(c(1:n.species),length(unk.ind),prob=Obs.sp,replace=TRUE)
@@ -237,7 +214,7 @@ hierarchical_DS<-function(Dat,Adj,Area.hab=1,Mapping,Area.trans,Observers,Bin.le
 				Data[isp,itrans,1:nrow(Cur.dat),1:(3+n.obs.cov)]=as.matrix(Cur.dat[,1:(3+n.obs.cov)])
 				Data[isp,itrans,1:nrow(Cur.dat),5+n.obs.cov]=as.matrix(Cur.dat[,"Distance"])
 				#fill distances for unobserved
-			    if((M[isp,itrans]-nrow(Cur.dat))<=0)cat("Error: M dimension too small; Increase M \n")
+			  if((M[isp,itrans]-nrow(Cur.dat))<=0)cat(paste("Error: M dimension for species ",isp," transect ",itrans," too small; Increase M \n"))
 				if(i.binned==1)Data[isp,itrans,(nrow(Cur.dat)+1):M[isp,itrans],5+n.obs.cov]=rep(sample(c(1:n.bins),size=(M[isp,itrans]-nrow(Cur.dat))/n.Observers[itrans],replace=TRUE,prob=Bin.length),each=n.Observers[itrans])
 				else Data[isp,itrans,(nrow(Cur.dat)+1):M[isp,itrans],5+n.obs.cov]=rep(runif((M[isp,itrans]-nrow(Cur.dat))/n.Observers[itrans]),each=n.Observers[itrans])
 				#fill individual covariate values for (potential) animals that weren't observed
@@ -271,7 +248,7 @@ hierarchical_DS<-function(Dat,Adj,Area.hab=1,Mapping,Area.trans,Observers,Bin.le
 				N.transect[isp,itrans]=0
 			}
 			#fill observer ids
-			Data[isp,itrans,(n.Records[isp,itrans]+1):max.M,1]=rep(Observers[1:n.Observers[itrans],itrans],(max.M-n.Records[isp,itrans])/n.Observers[itrans])
+			Data[isp,itrans,(n.Records[isp,itrans]+1):max.M,1]=rep(Observers.num[1:n.Observers[itrans],itrans],(max.M-n.Records[isp,itrans])/n.Observers[itrans])
 			#fill observer covariates
 			if(n.obs.cov>0){
 				for(icov in 1:n.obs.cov){
@@ -314,11 +291,10 @@ hierarchical_DS<-function(Dat,Adj,Area.hab=1,Mapping,Area.trans,Observers,Bin.le
 	stacked.names=c(colnames(Dat)[3:4],"Obs.species","Species",colnames(Dat)[6:ncol(Dat)])
 	Stacked=stack_data(Data[1,,,],G.transect[1,]*n.Observers,n.transects,stacked.names,factor.ind) #a stacked form of detection data for updating beta parameters
 	if(n.species>1)for(isp in 2:n.species)Stacked=rbind(Stacked,stack_data(Data[isp,,,],G.transect[isp,]*n.Observers,n.transects,stacked.names,factor.ind))
-	Stacked[,"Species"]=as.factor(Stacked[,"Species"])
-	
+
 	#determine levels for each factor variable to help in assembling compatible DMs for smaller datasets 
 	# (stored in list object named 'Levels')
-    factor.ind["Species"]=TRUE
+  factor.ind["Species"]=TRUE
 	factor.cols=which(factor.ind[stacked.names]==TRUE) 
 	if(length(factor.cols)>0 & is.null(Levels)[1]==1){
 		Temp=Stacked[,factor.cols]
@@ -333,7 +309,7 @@ hierarchical_DS<-function(Dat,Adj,Area.hab=1,Mapping,Area.trans,Observers,Bin.le
 	N.hab.par=rep(0,n.species)
 	DM.hab=vector('list',n.species)
 	if(1==1){
-		if(is.null(Hab.cov)){
+		if(is.null(Hab.cov)|Hab.formula[[1]]==~1){
 			DM.hab[[1]]=as.matrix(rep(1,S),ncol=1)
 			colnames(DM.hab[[1]])="Intercept"
 		}
@@ -342,7 +318,7 @@ hierarchical_DS<-function(Dat,Adj,Area.hab=1,Mapping,Area.trans,Observers,Bin.le
 	N.hab.par[1]=ncol(DM.hab[[1]])
 	if(n.species>1){
 		for(i in 2:n.species){  #create design matrices for each species. e.g., name for first species will be DM.hab1
-			if(is.null(Hab.cov)){
+			if(is.null(Hab.cov)|Hab.formula[[i]]==~1){
 				DM.hab[[i]]=as.matrix(rep(1,S),ncol=1)
 				colnames(DM.hab[[i]])="Intercept"
 			}
@@ -350,14 +326,14 @@ hierarchical_DS<-function(Dat,Adj,Area.hab=1,Mapping,Area.trans,Observers,Bin.le
 			N.hab.par[i]=ncol(DM.hab[[i]])
 		}
 	}
-  	DM.det=get_mod_matrix(Cur.dat=Stacked,stacked.names,factor.ind,Det.formula,Levels)
+  DM.det=get_mod_matrix(Cur.dat=Stacked,stacked.names,factor.ind,Det.formula,Levels)
 	
 	#now, deal with misID parameters
 	N.par.misID=NULL
 	if(misID==TRUE){
 		N.par.misID=rep(0,max(misID.mat))
 		for(i in 1:max(misID.mat)){
-			N.par.misID[i]=ncol(model.matrix(misID.models[[i]],data=Stacked))
+			N.par.misID[i]=ncol(model.matrix(misID.models[[i]],data=as.data.frame(Stacked)))
 		}
 	}
 
@@ -368,8 +344,10 @@ hierarchical_DS<-function(Dat,Adj,Area.hab=1,Mapping,Area.trans,Observers,Bin.le
 			eval(parse(text=paste("Par$",names(Inits)[ipar],"=Inits$",names(Inits[ipar]))))
 		}
 	}
+  if(point.ind==TRUE)Par$cor=0
 	#start Nu out at a compatible level
     for(isp in 1:n.species)Par$Nu[isp,]=DM.hab[[isp]]%*%Par$hab[isp,1:N.hab.par[isp]]
+  if(length(Par$tau.nu)!=n.species)cat('Error: length of initial value vector for tau.nu should be equal to # of species')
 	
 	#get initial individual covariate parameter values
 	Par$Cov.par=Cov.prior.parms 
@@ -385,7 +363,7 @@ hierarchical_DS<-function(Dat,Adj,Area.hab=1,Mapping,Area.trans,Observers,Bin.le
 	
 	dist.pl=5+n.obs.cov
 	
-	n.hab.cov=ifelse(is.null(Hab.cov)==1,0,ncol(Hab.cov))
+	n.hab.cov=ifelse(is.null(Hab.cov)==1 | length(Hab.cov)==1,0,ncol(Hab.cov))
 		
 	i.Covered=c(1:S)%in%Mapping
 	Covered.area=rep(0,S)
@@ -403,8 +381,8 @@ hierarchical_DS<-function(Dat,Adj,Area.hab=1,Mapping,Area.trans,Observers,Bin.le
 			Adj=Adj,Mapping=Mapping,Covered.area=Covered.area,n.Observers=n.Observers,M=M,stacked.names=stacked.names,
 			factor.ind=factor.ind,Det.formula=Det.formula,detect=detect,Levels=Levels,i.binned=i.binned,dist.pl=dist.pl,
 			G.transect=G.transect,N.transect=N.transect,grps=grps,n.bins=n.bins,Bin.length=Bin.length,n.ind.cov=n.ind.cov,
-			Cov.prior.pdf=Cov.prior.pdf,Cov.prior.parms=Cov.prior.parms,Cov.prior.fixed=Cov.prior.fixed,Cov.prior.n=Cov.prior.n,point.ind=point.ind,fix.tau.nu=fix.tau.nu,
-			srr=srr,srr.tol=srr.tol,misID=misID,misID.models=misID.models,misID.mat=misID.mat,misID.symm=misID.symm,N.par.misID=N.par.misID,N.hab.par=N.hab.par)
+			Cov.prior.pdf=Cov.prior.pdf,Cov.prior.parms=Cov.prior.parms,Cov.prior.fixed=Cov.prior.fixed,Cov.prior.n=Cov.prior.n,point.ind=point.ind,last.ind=last.ind,cor.const=cor.const,fix.tau.nu=fix.tau.nu,
+			srr=srr,srr.tol=srr.tol,misID=misID,misID.models=misID.models,misID.mat=misID.mat,misID.symm=misID.symm,N.par.misID=N.par.misID,N.hab.par=N.hab.par,post.loss=post.loss)
 	
 	mcmc_ds<-cmpfun(mcmc_ds)
 	if(adapt==TRUE){

@@ -16,9 +16,11 @@ Description: Functions for performing hierarchical analysis of distance
     algorithm to sample animals that were never observed.  Also
     included is the ability to include point independence (increasing
     correlation multiple observer's observations as a function of
-    distance, with independence assumed for distance=0 (or first
-    distance bin).
-Version: 1.0
+    distance, with independence assumed for distance=0 or first
+    distance bin).  New in version 2.0 is the ability to model species
+    misclassification rates using a multinomial logit formulation on data
+    from double observers.
+Version: 2.0
 Depends:
     truncnorm,
     MASS,
@@ -27,10 +29,9 @@ Depends:
     coda,
     spsurvey,
     MCMCpack,
-    ggplot2,
     xtable,
     mc2d
-Date: 2012-3-26
+Date: 2012-9-26
 Collate:
     'hierarchical_DS.R'
     'mcmc_ds.R'

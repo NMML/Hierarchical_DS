@@ -16,9 +16,11 @@
   giving the log of the abundance intensity for each
   strata; "G": a vector giving the number of groups of
   animals in each strata; "N": a vector giving the number
-  of animals in each strata "Cov.par": an (n.species X n X
-  n.ind.cov) array holding parameters of individual
-  covariate distributions.}
+  of animals in each strata "MisID": a list, each entry i
+  of which is a vector holding the parameters for the ith
+  misID model "Cov.par": an (n.species X n X n.ind.cov)
+  array holding parameters of individual covariate
+  distributions.}
 
   \item{Data}{A four dimensional array; the first dimension
   gives species, the second gives the transect, the third
@@ -35,7 +37,7 @@
   MCMC}
 
   \item{Control}{A list object including the following
-  slots: "iter": number of MCMC iterations; "burnin":
+  objects: "iter": number of MCMC iterations; "burnin":
   number of MCMC burnin iterations; "thin": if specified,
   how many iterations to skip between recorded posterior
   samples; "adapt": if adapt==TRUE, this gives the number
@@ -49,7 +51,8 @@
   abundance process (nrows=number of species, ncol = max
   number of columns of habitat DM); "RJ.N": A vector giving
   the maximum number of additions and deletions proposed in
-  an iteration of the RJMCMC algorithm for each transect}
+  an iteration of the RJMCMC algorithm for each transect
+  "iter.fix.N" Number of iterations to skip RJMCMC step}
 
   \item{DM.hab}{A design matrix for the log of abundance
   intensity}
@@ -61,7 +64,7 @@
   process}
 
   \item{Prior.pars}{A list object giving parameters of
-  prior distribution.  Includes the following slots
+  prior distribution.  Includes the following objects
   "a.eta": alpha parameter for prior precision of spatial
   process (assumed Gamma(a.eta,b.eta)) "b.eta": beta
   parameter for prior precision of spatial process (assumed
@@ -69,13 +72,13 @@
   precision of overdispersion process (assumed
   Gamma(a.nu,b.nu)) "b.nu": beta parameter for prior
   precision of overdispersion process (assumed
-  Gamma(a.nu,b.nu)) "beta.sd": standard deviation for
-  regression coefficients (assumed Normal(0,beta.sd^2)
-  "misID.mu": a list vector, each entry gives normal prior
-  means for misID regression coefficients for the
-  corresponding model in Meta$misID.mat (can be set to null
-  if no misID) "misID.sd": a list vector, each entry gives
-  normal prior sd for misID regression coefficients for the
+  Gamma(a.nu,b.nu)) "beta.tau": Prior precision for
+  regression coefficients "misID.mu": a list vector, each
+  entry gives normal prior means for misID regression
+  coefficients for the corresponding model in
+  Meta$misID.mat (can be set to null if no misID)
+  "misID.sd": a list vector, each entry gives normal prior
+  sd for misID regression coefficients for the
   corresponding model in Meta$misID.mat (can be set to null
   if no misID)}
 
@@ -91,22 +94,27 @@
   strata "Covered.area" Vector giving the fraction of each
   strata covered by transects "n.Observers" Vector giving
   the number of observers that operated on each transect
-  "M" Vector giving maximum number of groups in each
-  transect "stacked.names" Character vector giving column
-  names for the dataset "factor.ind" Indicator vector
-  specifying whether data columns are factors (1) or
-  continuous (0) "Det.formula" a formula object specifying
-  the model for the detection process "Levels" a list
-  object, where slot names are comprised of detection model
-  names; each slot gives total # of levels in the combined
-  dataset "i.binned" indicator for whether distances are
-  recorded in bins (1) or are continuous (0) "dist.pl"
-  gives the column in Data where distances are located
-  "G.transect" vector holding current number of groups of
-  animals present in area covered by each transect
-  "N.transect" vector holding current number of animals
-  present in covered area by each transect "grps" indicator
-  for whether observations are for groups rather than
+  "M" Matrix with species-specific rows giving maximum
+  possible value for number of groups present in each
+  transect (in practice just set high enough that values at
+  M and above are never sampled during MCMC) and can be
+  fine tuned as needed#' "stacked.names" Character vector
+  giving column names for the dataset "factor.ind"
+  Indicator vector specifying whether data columns are
+  factors (1) or continuous (0) "detect" If TRUE, detection
+  parameters are estimated; if FALSE assumes a census
+  "Det.formula" a formula object specifying the model for
+  the detection process "Levels" a list object, whose
+  elements are comprised of detection model names; each
+  element gives total # of levels in the combined dataset
+  "i.binned" indicator for whether distances are recorded
+  in bins (1) or are continuous (0) "dist.pl" gives the
+  column in Data where distances are located "G.transect"
+  vector holding current number of groups of animals
+  present in area covered by each transect "N.transect"
+  vector holding current number of animals present in
+  covered area by each transect "grps" indicator for
+  whether observations are for groups rather than
   individuals "n.bins" number of distance bins (provided
   i.binned=1) "Bin.length" vector giving relative size of
   distance bins "n.ind.cov" Number of individual covariates
@@ -124,29 +132,37 @@
   number of parameters in each covariate pdf "point.ind"
   Indicator for whether point independence assumed (if no,
   then no correlation modeled b/w multiple observers as
-  function of distance) "fix.tau.nu" Indicator for whether
-  tau.nu should be fixed (1) or estimated(0) "srr"
-  Indicator for whether a spatially restricted regression
-  model should be employed (1) or not (0) "srr.tol"
-  Threshold eigenvalue level for SRR; only eigenvectors
-  with higher eigenvalues than srr.tol are included in SRR
-  formulation "misID" If TRUE, misidentification of species
-  is modeled "misID.mat" With true state on rows and
-  assigned state on column, each positive entry provides an
-  index to misID.models (i.e. what model to assume on
-  multinomial logit space); a 0 indicates an impossible
-  assigment; a negative number designates which column is
-  to be obtained via subtraction "misID.models" A formula
-  vector providing linar model-type formulas for each
-  positive value of misID.mat.  If the same model is used
-  in multiple columns it is assumed that all fixed effects
-  (except the intercept) are shared "N.par.misID" A vector
-  specifying the number of parameters needed for each misID
-  model "N.hab.par" A vector specifying the number of
-  parameters needed for each species' habitat model}
+  function of distance) "last.ind" If TRUE (and
+  point.ind=TRUE), point independence operates by assuming
+  0 dependence at the farthest bin "cor.const" If TRUE,
+  forces estimates of correlation associated with point
+  independence to be positive if last.ind==FALSE or
+  negative if last.ind==TRUE (default is FALSE)
+  "fix.tau.nu" Indicator for whether tau.nu should be fixed
+  (1) or estimated(0) "srr" Indicator for whether a
+  spatially restricted regression model should be employed
+  (1) or not (0) "srr.tol" Threshold eigenvalue level for
+  SRR; only eigenvectors with higher eigenvalues than
+  srr.tol are included in SRR formulation "misID" If TRUE,
+  misidentification of species is modeled "misID.mat" With
+  true state on rows and assigned state on column, each
+  positive entry provides an index to misID.models (i.e.
+  what model to assume on multinomial logit space); a 0
+  indicates an impossible assigment; a negative number
+  designates which column is to be obtained via subtraction
+  "misID.models" A formula vector providing linar
+  model-type formulas for each positive value of misID.mat.
+  "misID.symm" If TRUE, classification probabilities
+  assumed to be symmetric (e.g. pi^{2|1}=pi^{1|2})
+  "N.par.misID" A vector specifying the number of
+  parameters needed for each misID model "N.hab.par" A
+  vector specifying the number of parameters needed for
+  each species' habitat model "post.loss" If TRUE, observed
+  and predicted detections are compiled for posterior
+  predictive loss}
 }
 \value{
-  returns a list with the following slots: "MCMC": An
+  returns a list with the following objects: "MCMC": An
   'mcmc' object (see 'coda' R package) containing posterior
   samples; "Accept": A list object indicating the number of
   proposals that were accepted for parameters updated via
@@ -159,7 +175,13 @@
   obtained by sampling a Poisson distribution given current
   parameter values "Post": Holds posterior samples for
   strata specific group sizes ("Post$G") and abundance
-  ("Post$N")
+  ("Post$N") "Obs.det": if Meta$post.loss=TRUE, an array
+  holding observed detection types for posterior predictive
+  loss calculations dim =
+  c(n.transects,n.obs.types,n.obs.types) "Pred.det": if
+  Meta$post.loss=TRUE, an array holding predicted detection
+  types for posterior predictive loss calculations dim =
+  c(n.mcmc.iter,n.transects,n.obs.types,n.obs.types)
 }
 \description{
   Function for MCMC analysis
