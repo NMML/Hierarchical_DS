@@ -97,7 +97,6 @@ hierarchical_DS<-function(Dat,Adj,Area.hab=1,Mapping,Area.trans,Observers,Bin.le
 	require(truncnorm)
 	require(mc2d)
 	require(MCMCpack)
-	require(compiler)
 	DEBUG=FALSE
 	
 	Adj=as.matrix(Adj)  #just in case the adjacency matrix = 1 (for 1 transect)
@@ -384,7 +383,6 @@ hierarchical_DS<-function(Dat,Adj,Area.hab=1,Mapping,Area.trans,Observers,Bin.le
 			Cov.prior.pdf=Cov.prior.pdf,Cov.prior.parms=Cov.prior.parms,Cov.prior.fixed=Cov.prior.fixed,Cov.prior.n=Cov.prior.n,point.ind=point.ind,last.ind=last.ind,cor.const=cor.const,fix.tau.nu=fix.tau.nu,
 			srr=srr,srr.tol=srr.tol,misID=misID,misID.models=misID.models,misID.mat=misID.mat,misID.symm=misID.symm,N.par.misID=N.par.misID,N.hab.par=N.hab.par,post.loss=post.loss)
 	
-	mcmc_ds<-cmpfun(mcmc_ds)
 	if(adapt==TRUE){
 		cat('\n Beginning adapt phase \n')
 		Out=mcmc_ds(Par=Par,Data=Data,cur.iter=Control$adapt,adapt=1,Control=Control,DM.hab=DM.hab,DM.det=DM.det,Q=Q,Prior.pars=Prior.pars,Meta=Meta)

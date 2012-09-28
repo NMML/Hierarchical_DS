@@ -95,15 +95,6 @@ mcmc_ds<-function(Par,Data,cur.iter,adapt,Control,DM.hab,DM.det,Q,Prior.pars,Met
 	#require(mvtnorm)
 	#require(Matrix)
 	#require(truncnorm)
-	require(compiler)
-	switch_sample<-cmpfun(switch_sample)
-	switch_sample_prior<-cmpfun(switch_sample_prior)
-	switch_pdf<-cmpfun(switch_pdf)
-	get_mod_matrix<-cmpfun(get_mod_matrix)
-	log_lambda_gradient<-cmpfun(log_lambda_gradient)
-	log_lambda_log_likelihood<-cmpfun(log_lambda_log_likelihood)
-	get_confusion_mat<-cmpfun(get_confusion_mat)
-
 	Lam.index=c(1:Meta$S)
 	if(Meta$i.binned==0)dist.mult=1
 	if(Meta$i.binned==1)dist.mult=1/(Meta$n.bins-1)

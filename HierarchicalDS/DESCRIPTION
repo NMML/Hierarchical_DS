@@ -10,7 +10,7 @@ Description: Functions for performing hierarchical analysis of distance
     sampling data, with ability to use an areal spatial ICAR model on
     top of user supplied covariates to get at variation in abundance
     intensity.  The detection model can be specified as a function of
-    observer and individual covariates, where a parameteric model is
+    observer and individual covariates, where a parametric model is
     supposed for the population level distribution of covariate values.
     The model uses data augmentation and a reversible jump MCMC
     algorithm to sample animals that were never observed.  Also
