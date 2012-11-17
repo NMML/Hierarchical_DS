@@ -21,7 +21,8 @@
 #' @param n.obs.cov	Number of observer covariates (e.g., seat position, visibility, etc.)
 #' @param Hab.cov	A data.frame object giving covariates thought to influence abundance intensity at strata level; column names index individual covariates
 #' @param Obs.cov  A (max # of observers X # of transects X # of observer covariates) size array giving observer covariate values for each transect flown
-#' @param Hab.formula	A formula vector giving the specific model for abundance intensity at the strata level (e.g., ~Vegetation+Latitude) for each species
+#' @param Hab.pois.formula	A formula vector giving the specific model for Poisson abundance intensity at the strata level (e.g., ~Vegetation+Latitude) for each species
+#' @param Hab.bern.formula  If ZIP=TRUE, a formula vector giving the specific model for the zero component for abundance intensity at the strata level (e.g., ~Vegetation+Latitude) for each species
 #' @param detect If TRUE (the default), detectability is estimated; if FALSE, assumes detection probability is 1.0 (i.e. a strip transect with perfect detection).  
 #' @param Det.formula  A formula giving the model for detection probability (e.g. ~Distance+Group+Visibility+Observer). Note that
 #'				there are several "reserved" variable names.  "Distance", "Observer", "Species", and "Group" are reserved variable names.
@@ -42,6 +43,7 @@
 #' @param Cov.prior.fixed  An indicator matrix specifying which (if any) individual covariate distributions should be fixed during estimation
 #' @param Cov.prior.n  An (# species X # indiv. covariates) matrix giving the number of parameters in each covariate pdf
 #' @param pol.eff 	For continuous distance, which polynomial degrees to model (default is c(1:2); an intercept is always estimated when "Distance" is listed in "Det.formula")
+#' @param ZIP  If TRUE, estimate ZIP model for abundance that includes a Bernoulli model for zeros and a Poisson + 1 model for positive values (default is FALSE)
 #' @param point.ind  Estimate a correlation parameter for detection probability that's an increasing function of distance?
 #' @param spat.ind	If TRUE, assumes spatial independence (no spatial random effects on abundance intensity) default is FALSE
 #' @param last.ind If point independence is modeled (point.ind=TRUE), last.ind=TRUE will set observer covariance to zero for the greatest distance and maximal correlation in first bin (default is FALSE)
@@ -62,16 +64,18 @@
 #'	"adapt": if adapt==TRUE, this gives the number of additional MCMC iterations should be performed to adapt MCMC proposals to optimal ranges prior to final MCMC run; 
 #'	"MH.cor": Metropolis-hastings tuning parameter for updating the correlation parameter (if point.ind==TRUE);
 #'	"MH.nu": MH tuning parameters for Nu parameters (dimension = # species X # of unique strata sampled)
-#'	"MH.beta": A matrix of tuning parameters for betas of the abundance process (nrows=number of species, ncol = max number of columns of habitat DM);
 #'	"RJ.N": A matrix giving the maximum number of additions and deletions proposed in an iteration of the RJMCMC algorithm for each species (row) and each transect (column)
 #'  "iter.fix.N": Number of iterations to skip RJMCMC step at beginning of estimation (useful for cases when estimation is unstable)
 #' @param Inits	An (optional) list object providing initial values for model parameters, with the following objects:
-#' "Beta.hab": Initial values for habitat linear predictor parameters;
-#'	"Beta.det": Initial values for detection model (includes distance, observer, env. variables, and individual covariates);
+#'  "hab.pois": Initial values for habitat linear predictor parameters for poisson model;
+#'  "hab.bern": If ZIP=TRUE, initial values for habitat linear predictor parameters for bernoulli zero model;
+#'	"det": Initial values for detection model (includes distance, observer, env. variables, and individual covariates);
 #'	"cor.par": If point.ind==TRUE, this is an initial value for the correlation parameter (which must be in (0,1));	
 #'	"Nu": Gives log(lambda) for each spatial strata;
-#'	"Eta": If spat.ind==FALSE, spatial random effects; one for each strata; 
-#'	"tau.eta": If spat.ind==FALSE, precision for spatial ICAR model;  
+#'	"Eta.pois": If spat.ind==FALSE, spatial random effects for Poisson abundance model; one for each cell and for each species
+#'  "Eta.bern": If spat.ind==FALSE & ZIP=TRUE, spatial random effects for Bernoulli abundance model; one for each cell and for each species
+#'	"tau.eta.pois": If spat.ind==FALSE, precision for spatial ICAR model(s) for the Poisson component
+#'  "tau.eta.bern": If spat.ind==FALSE & ZIP=TRUE, precision for spatial ICAR model(s) for the Bernoulli component
 #'	"tau.nu": Precision for Nu (overdispersion relative to the Poisson distribution)
 #'  One need not specify an initial value for all parameter types (if less are specified, the others are generated randomly)
 #' @param adapt	If adapt==TRUE, run an additional Control$adapt number of MCMC iterations to optimize MCMC proposal distributions prior to primary MCMC
@@ -91,7 +95,7 @@
 #' @keywords areal model, data augmentation, distance sampling, mcmc, reversible jump
 #' @author Paul B. Conn \email{paul.conn@@noaa.gov} 
 #' @examples print("example analysis included in the script example_analysis.R")
-hierarchical_DS<-function(Dat,Adj,Area.hab=1,Mapping,Area.trans,Observers,Bin.length,Hab.cov,Obs.cov,Hab.formula,Det.formula,detect=TRUE,Cov.prior.pdf,Cov.prior.parms,Cov.prior.fixed,Cov.prior.n,n.obs.cov=0,pol.eff=c(1:2),point.ind=TRUE,spat.ind=FALSE,last.ind=FALSE,cor.const=FALSE,fix.tau.nu=FALSE,srr=TRUE,srr.tol=0.5,misID=FALSE,misID.models=NULL,misID.mat=NULL,misID.symm=TRUE,Inits=NULL,grps=FALSE,M,Control,adapt=TRUE,Prior.pars,post.loss=TRUE){
+hierarchical_DS<-function(Dat,Adj,Area.hab=1,Mapping,Area.trans,Observers,Bin.length,Hab.cov,Obs.cov,Hab.pois.formula,Hab.bern.formula=NULL,Det.formula,detect=TRUE,Cov.prior.pdf,Cov.prior.parms,Cov.prior.fixed,Cov.prior.n,n.obs.cov=0,pol.eff=c(1:2),ZIP=FALSE,point.ind=TRUE,spat.ind=FALSE,last.ind=FALSE,cor.const=FALSE,fix.tau.nu=FALSE,srr=TRUE,srr.tol=0.5,misID=FALSE,misID.models=NULL,misID.mat=NULL,misID.symm=TRUE,Inits=NULL,grps=FALSE,M,Control,adapt=TRUE,Prior.pars,post.loss=TRUE){
 	require(mvtnorm)
 	require(Matrix)
 	require(truncnorm)
@@ -305,26 +309,51 @@ hierarchical_DS<-function(Dat,Adj,Area.hab=1,Mapping,Area.trans,Observers,Bin.le
 		}		
 	}
 
-	N.hab.par=rep(0,n.species)
-	DM.hab=vector('list',n.species)
+	N.hab.pois.par=rep(0,n.species)
+	DM.hab.pois=vector('list',n.species)
 	if(1==1){
-		if(is.null(Hab.cov)|Hab.formula[[1]]==~1){
-			DM.hab[[1]]=as.matrix(rep(1,S),ncol=1)
-			colnames(DM.hab[[1]])="Intercept"
+		if(is.null(Hab.cov)|Hab.pois.formula[[1]]==~1){
+			DM.hab.pois[[1]]=as.matrix(rep(1,S),ncol=1)
+			colnames(DM.hab.pois[[1]])="Intercept"
 		}
-		else DM.hab[[1]]=model.matrix(Hab.formula[[1]],data=Hab.cov)
+		else DM.hab.pois[[1]]=model.matrix(Hab.pois.formula[[1]],data=Hab.cov)
 	}
-	N.hab.par[1]=ncol(DM.hab[[1]])
+	N.hab.pois.par[1]=ncol(DM.hab.pois[[1]])
 	if(n.species>1){
-		for(i in 2:n.species){  #create design matrices for each species. e.g., name for first species will be DM.hab1
-			if(is.null(Hab.cov)|Hab.formula[[i]]==~1){
-				DM.hab[[i]]=as.matrix(rep(1,S),ncol=1)
-				colnames(DM.hab[[i]])="Intercept"
+		for(i in 2:n.species){  #create design matrices for each species. e.g., name for first species will be DM.hab.pois1
+			if(is.null(Hab.cov)|Hab.pois.formula[[i]]==~1){
+				DM.hab.pois[[i]]=as.matrix(rep(1,S),ncol=1)
+				colnames(DM.hab.pois[[i]])="Intercept"
 			}
-			else DM.hab[[i]]=model.matrix(Hab.formula[[i]],data=Hab.cov)
-			N.hab.par[i]=ncol(DM.hab[[i]])
+			else DM.hab.pois[[i]]=model.matrix(Hab.pois.formula[[i]],data=Hab.cov)
+			N.hab.pois.par[i]=ncol(DM.hab.pois[[i]])
 		}
 	}
+  DM.hab.bern=NULL
+  N.hab.bern.par=NULL
+	if(ZIP){
+	  DM.hab.bern=vector('list',n.species)
+	  N.hab.bern.par=rep(0,n.species)
+	  if(1==1){
+	    if(is.null(Hab.cov)|Hab.bern.formula[[1]]==~1){
+	      DM.hab.bern[[1]]=as.matrix(rep(1,S),ncol=1)
+	      colnames(DM.hab.bern[[1]])="Intercept"
+	    }
+	    else DM.hab.bern[[1]]=model.matrix(Hab.bern.formula[[1]],data=Hab.cov)
+	  }
+	  N.hab.bern.par[1]=ncol(DM.hab.bern[[1]])
+	  if(n.species>1){
+	    for(i in 2:n.species){  #create design matrices for each species. e.g., name for first species will be DM.hab.bern1
+	      if(is.null(Hab.cov)|Hab.bern.formula[[i]]==~1){
+	        DM.hab.bern[[i]]=as.matrix(rep(1,S),ncol=1)
+	        colnames(DM.hab.bern[[i]])="Intercept"
+	      }
+	      else DM.hab.bern[[i]]=model.matrix(Hab.bern.formula[[i]],data=Hab.cov)
+	      N.hab.bern.par[i]=ncol(DM.hab.bern[[i]])
+	    }
+	  }
+	}	  
+  
   DM.det=get_mod_matrix(Cur.dat=Stacked,stacked.names,factor.ind,Det.formula,Levels)
 	
 	#now, deal with misID parameters
@@ -336,7 +365,7 @@ hierarchical_DS<-function(Dat,Adj,Area.hab=1,Mapping,Area.trans,Observers,Bin.le
 		}
 	}
 
-	Par=generate_inits_misID(DM.hab=DM.hab,DM.det=DM.det,N.hab.par=N.hab.par,G.transect=G.transect,Area.trans=Area.trans,Area.hab=Area.hab,Mapping=Mapping,point.ind=point.ind,spat.ind=spat.ind,grp.mean=Cov.prior.parms[,1,1],misID=misID,misID.mat=misID.mat,N.par.misID=N.par.misID)	
+	Par=generate_inits_misID(DM.hab.pois=DM.hab.pois,DM.hab.bern=DM.hab.bern,DM.det=DM.det,N.hab.pois.par=N.hab.pois.par,N.hab.bern.par=N.hab.bern.par,G.transect=G.transect,Area.trans=Area.trans,Area.hab=Area.hab,Mapping=Mapping,point.ind=point.ind,spat.ind=spat.ind,grp.mean=Cov.prior.parms[,1,1],misID=misID,misID.mat=misID.mat,N.par.misID=N.par.misID)	
 	if(is.null(Inits)==FALSE){  #replace random inits with user provided inits for all parameters specified
 		I.init=names(Inits)
 		for(ipar in 1:length(I.init)){
@@ -345,7 +374,7 @@ hierarchical_DS<-function(Dat,Adj,Area.hab=1,Mapping,Area.trans,Observers,Bin.le
 	}
   if(point.ind==TRUE)Par$cor=0
 	#start Nu out at a compatible level
-    for(isp in 1:n.species)Par$Nu[isp,]=DM.hab[[isp]]%*%Par$hab[isp,1:N.hab.par[isp]]
+    for(isp in 1:n.species)Par$Nu[isp,]=DM.hab.pois[[isp]]%*%Par$hab.pois[isp,1:N.hab.pois.par[isp]]
   if(length(Par$tau.nu)!=n.species)cat('Error: length of initial value vector for tau.nu should be equal to # of species')
 	
 	#get initial individual covariate parameter values
@@ -380,18 +409,18 @@ hierarchical_DS<-function(Dat,Adj,Area.hab=1,Mapping,Area.trans,Observers,Bin.le
 			Adj=Adj,Mapping=Mapping,Covered.area=Covered.area,n.Observers=n.Observers,M=M,stacked.names=stacked.names,
 			factor.ind=factor.ind,Det.formula=Det.formula,detect=detect,Levels=Levels,i.binned=i.binned,dist.pl=dist.pl,
 			G.transect=G.transect,N.transect=N.transect,grps=grps,n.bins=n.bins,Bin.length=Bin.length,n.ind.cov=n.ind.cov,
-			Cov.prior.pdf=Cov.prior.pdf,Cov.prior.parms=Cov.prior.parms,Cov.prior.fixed=Cov.prior.fixed,Cov.prior.n=Cov.prior.n,point.ind=point.ind,last.ind=last.ind,cor.const=cor.const,fix.tau.nu=fix.tau.nu,
-			srr=srr,srr.tol=srr.tol,misID=misID,misID.models=misID.models,misID.mat=misID.mat,misID.symm=misID.symm,N.par.misID=N.par.misID,N.hab.par=N.hab.par,post.loss=post.loss)
+			Cov.prior.pdf=Cov.prior.pdf,Cov.prior.parms=Cov.prior.parms,Cov.prior.fixed=Cov.prior.fixed,Cov.prior.n=Cov.prior.n,ZIP=ZIP,point.ind=point.ind,last.ind=last.ind,cor.const=cor.const,fix.tau.nu=fix.tau.nu,
+			srr=srr,srr.tol=srr.tol,misID=misID,misID.models=misID.models,misID.mat=misID.mat,misID.symm=misID.symm,N.par.misID=N.par.misID,N.hab.pois.par=N.hab.pois.par,N.hab.bern.par=N.hab.bern.par,post.loss=post.loss)
 	
 	if(adapt==TRUE){
 		cat('\n Beginning adapt phase \n')
-		Out=mcmc_ds(Par=Par,Data=Data,cur.iter=Control$adapt,adapt=1,Control=Control,DM.hab=DM.hab,DM.det=DM.det,Q=Q,Prior.pars=Prior.pars,Meta=Meta)
+		Out=mcmc_ds(Par=Par,Data=Data,cur.iter=Control$adapt,adapt=1,Control=Control,DM.hab.pois=DM.hab.pois,DM.hab.bern=DM.hab.bern,DM.det=DM.det,Q=Q,Prior.pars=Prior.pars,Meta=Meta)
 		cat('\n Beginning MCMC phase \n')
-		Out=mcmc_ds(Par=Par,Data=Data,cur.iter=Control$iter,adapt=0,Control=Out$Control,DM.hab=DM.hab,DM.det=DM.det,Q=Q,Prior.pars=Prior.pars,Meta=Meta)
+		Out=mcmc_ds(Par=Par,Data=Data,cur.iter=Control$iter,adapt=0,Control=Out$Control,DM.hab.pois=DM.hab.pois,DM.hab.bern=DM.hab.bern,DM.det=DM.det,Q=Q,Prior.pars=Prior.pars,Meta=Meta)
 	}
 	else{
 		cat('\n Beginning MCMC phase \n')
-		Out=mcmc_ds(Par=Par,Data=Data,cur.iter=Control$iter,adapt=0,Control=Control,DM.hab=DM.hab,DM.det=DM.det,Q=Q,Prior.pars=Prior.pars,Meta=Meta)
+		Out=mcmc_ds(Par=Par,Data=Data,cur.iter=Control$iter,adapt=0,Control=Control,DM.hab.pois=DM.hab.pois,DM.hab.bern=DM.hab.bern,DM.det=DM.det,Q=Q,Prior.pars=Prior.pars,Meta=Meta)
 	}
 	Out	
 }

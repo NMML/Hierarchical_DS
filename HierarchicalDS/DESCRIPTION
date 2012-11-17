@@ -20,7 +20,7 @@ Description: Functions for performing hierarchical analysis of distance
     distance bin).  New in version 2.0 is the ability to model species
     misclassification rates using a multinomial logit formulation on data
     from double observers.
-Version: 2.0
+Version: 2.01
 Depends:
     truncnorm,
     MASS,
@@ -31,7 +31,7 @@ Depends:
     MCMCpack,
     xtable,
     mc2d
-Date: 2012-9-26
+Date: 2012-9-28
 Collate:
     'hierarchical_DS.R'
     'mcmc_ds.R'

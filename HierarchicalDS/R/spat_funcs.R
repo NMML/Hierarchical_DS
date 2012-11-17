@@ -164,16 +164,18 @@ generate_inits<-function(DM.hab,DM.det,G.transect,Area.trans,Area.hab,Mapping,po
            Nu=log(max(G.transect)/mean(Area.trans)*exp(rnorm(length(Area.hab)))),Eta=rnorm(length(Area.hab)),
            tau.eta=runif(1,0.5,2),tau.nu=runif(1,0.5,2))
   Par$hab[1]=mean(G.transect)/(mean(Area.trans)*mean(Area.hab))*exp(rnorm(1,0,1))
-  Par$G=exp(Par$Nu)*Area.hab*exp(rnorm(length(Par$Nu)))
+  Par$G=round(exp(Par$Nu)*Area.hab*exp(rnorm(length(Par$Nu))))
   Par$N=Par$G+rpois(length(Par$G),grp.mean*Par$G)
   if(spat.ind==1)Par$Eta=0*Par$Eta
   Par
 }
 
 #' generate initial values for misID model if not already specified by user
-#' @param DM.hab 	a list of design matrices for the habitat model (elements are named sp1,sp2, etc.)
+#' @param DM.hab.pois 	a list of design matrices for the Poisson habitat model (elements are named sp1,sp2, etc.)
+#' @param DM.hab.bern   If a hurdle model, a list of design matrices for the Bernoulli habitat model (elements are named sp1,sp2, etc.) (NULL if not hurdle)
 #' @param DM.det	design matrix for detection model
-#' @param N.hab.par  vector giving number of parameters in the habitat model for each species
+#' @param N.hab.pois.par  vector giving number of parameters in the Poisson habitat model for each species
+#' @param N.hab.bern.par  vector giving number of parameters in the Bernoulli habitat model for each species (NULL if not hurdle)
 #' @param G.transect a matrix of the number of groups of animals in area covered by each transect; each row gives a separate species		
 #' @param Area.trans	a vector giving the proportion of a strata covered by each transect
 #' @param Area.hab	a vector of the relative areas of each strata
@@ -188,7 +190,8 @@ generate_inits<-function(DM.hab,DM.det,G.transect,Area.trans,Area.hab,Mapping,po
 #' @export
 #' @keywords initial values, mcmc
 #' @author Paul B. Conn
-generate_inits_misID<-function(DM.hab,DM.det,N.hab.par,G.transect,Area.trans,Area.hab,Mapping,point.ind,spat.ind,grp.mean,misID,misID.mat,N.par.misID){		
+generate_inits_misID<-function(DM.hab.pois,DM.hab.bern,DM.det,N.hab.pois.par,N.hab.bern.par,G.transect,Area.trans,Area.hab,Mapping,point.ind,spat.ind,grp.mean,misID,misID.mat,N.par.misID){		
+  i.hurdle=1-is.null(DM.hab.bern)
   n.species=nrow(G.transect)
   n.cells=length(Area.hab)
   if(misID){
@@ -201,18 +204,29 @@ generate_inits_misID<-function(DM.hab,DM.det,N.hab.par,G.transect,Area.trans,Are
       for(itmp in 1:length(diag.mods))MisID[[diag.mods[itmp]]][1]=MisID[[diag.mods[itmp]]][1]+2 #ensure that the highest probability is for a non-misID
     }
   }
-  hab=matrix(0,n.species,max(N.hab.par))
+  hab.pois=matrix(0,n.species,max(N.hab.pois.par))
+  hab.bern=NULL
+  tau.eta.bern=NULL
+  Eta.bern=NULL
+  if(i.hurdle==1){
+    hab.bern=matrix(0,n.species,max(N.hab.bern.par))
+    tau.eta.bern=runif(n.species,0.5,2)
+    Eta.bern=matrix(rnorm(n.species*n.cells),n.species,n.cells)
+  }
   Nu=matrix(0,n.species,n.cells)
   for(isp in 1:n.species){
     Nu[isp,]=log(max(G.transect[isp,])/mean(Area.trans)*exp(rnorm(length(Area.hab),0,0.1)))
   }
-  Par=list(det=rnorm(ncol(DM.det),0,1),hab=hab,cor=ifelse(point.ind,runif(1,0,.8),0),
-           Nu=Nu,Eta=matrix(rnorm(n.species*n.cells),n.species,n.cells),
-           tau.eta=runif(n.species,0.5,2),tau.nu=runif(n.species,0.5,2),MisID=MisID)
-  Par$hab[,1]=log(apply(G.transect,1,'mean')/(mean(Area.trans)*mean(Area.hab))*exp(rnorm(n.species,0,1)))
-  Par$G=exp(Par$Nu)*Area.hab*exp(rnorm(length(Par$Nu)))
+  Par=list(det=rnorm(ncol(DM.det),0,1),hab.pois=hab.pois,hab.bern=hab.bern,cor=ifelse(point.ind,runif(1,0,.8),0),
+           Nu=Nu,Eta.pois=matrix(rnorm(n.species*n.cells),n.species,n.cells),Eta.bern=Eta.bern,
+           tau.eta.pois=runif(n.species,0.5,2),tau.eta.bern=tau.eta.bern,tau.nu=runif(n.species,0.5,2),MisID=MisID)
+  Par$hab.pois[,1]=log(apply(G.transect,1,'mean')/(mean(Area.trans)*mean(Area.hab))*exp(rnorm(n.species,0,1)))
+  Par$G=round(exp(Par$Nu)*Area.hab*exp(rnorm(length(Par$Nu))))
   for(isp in 1:n.species)Par$N[isp,]=Par$G[isp,]+rpois(n.cells,grp.mean[isp]*Par$G[isp,])
-  if(spat.ind==1)Par$Eta=0*Par$Eta
+  if(spat.ind==1){
+    Par$Eta.bern=0*Par$Eta.bern
+    Par$Eta.pois=0*Par$Eta.pois
+  }
   Par
 }
 
@@ -593,9 +607,11 @@ probit.fct=function(x,formula,beta,rho,...)
 
 #' function to convert HierarchicalDS MCMC list vector (used in estimation) into an mcmc object (cf. coda package) 
 #' @param MCMC list vector providing MCMC samples for each parameter type 
-#' @param N.hab.par see help for mcmc_ds.R
+#' @param N.hab.pois.par see help for mcmc_ds.R
+#' @param N.hab.bern.par see help for mcmc_ds.R
 #' @param Cov.par.n see help for mcmc_ds.R
-#' @param Hab.names see help for mcmc_ds.R
+#' @param Hab.pois.names see help for mcmc_ds.R
+#' @param Hab.bern.names see help for mcmc_ds.R
 #' @param Cov.names see help for mcmc_ds.R
 #' @param Det.names see help for mcmc_ds.R
 #' @param MisID.names see help for mcmc_ds.R
@@ -608,12 +624,14 @@ probit.fct=function(x,formula,beta,rho,...)
 #' @export
 #' @keywords MCMC, coda
 #' @author Paul B. Conn
-convert.HDS.to.mcmc<-function(MCMC,N.hab.par,Cov.par.n,Hab.names,Det.names,Cov.names,MisID.names,N.par.misID=NULL,misID.mat=NULL,fix.tau.nu=FALSE,misID=TRUE,spat.ind=TRUE,point.ind=TRUE){
+convert.HDS.to.mcmc<-function(MCMC,N.hab.pois.par,N.hab.bern.par,Cov.par.n,Hab.pois.names,Hab.bern.names,Det.names,Cov.names,MisID.names,N.par.misID=NULL,misID.mat=NULL,fix.tau.nu=FALSE,misID=TRUE,spat.ind=TRUE,point.ind=TRUE){
   require(coda)
   if(misID==TRUE & (is.null(N.par.misID)|is.null(misID.mat)))cat("\n Error: must provide N.par.misID and misID.mat whenever misID=TRUE \n")
-  n.species=nrow(MCMC$Hab)
-  n.iter=length(MCMC$Hab[1,,1])
-  n.col=n.species*2+sum(N.hab.par)+ncol(MCMC$Det)+point.ind+(1-spat.ind)*n.species+(1-fix.tau.nu)*n.species+sum(Cov.par.n)*n.species+misID*sum(N.par.misID)
+  i.ZIP=!is.na(N.hab.bern.par)[1]
+  n.species=nrow(MCMC$Hab.pois)
+  n.iter=length(MCMC$Hab.pois[1,,1])
+  n.col=n.species*2+sum(N.hab.pois.par)+ncol(MCMC$Det)+point.ind+(1-spat.ind)*n.species+(1-fix.tau.nu)*n.species+sum(Cov.par.n)*n.species+misID*sum(N.par.misID)
+  if(i.ZIP)n.col=n.col+sum(N.hab.bern.par)+(1-spat.ind)*n.species #for ZIP model
   n.cells=dim(MCMC$G)[3]
   Mat=matrix(0,n.iter,n.col)
   Mat[,1:n.species]=t(MCMC$N.tot)
@@ -625,9 +643,16 @@ convert.HDS.to.mcmc<-function(MCMC,N.hab.par,Cov.par.n,Hab.names,Det.names,Cov.n
   }
   counter=counter+n.species
   for(isp in 1:n.species){  #habitat parameters
-    Mat[,(counter+1):(counter+N.hab.par[isp])]=MCMC$Hab[isp,,1:N.hab.par[isp]]
-    col.names=c(col.names,paste("Hab.sp",isp,Hab.names[[isp]],sep=''))
-    counter=counter+sum(N.hab.par[isp])
+    Mat[,(counter+1):(counter+N.hab.pois.par[isp])]=MCMC$Hab.pois[isp,,1:N.hab.pois.par[isp]]
+    col.names=c(col.names,paste("Hab.pois.sp",isp,Hab.pois.names[[isp]],sep=''))
+    counter=counter+sum(N.hab.pois.par[isp])
+  }
+  if(i.ZIP){
+    for(isp in 1:n.species){  #habitat parameters
+      Mat[,(counter+1):(counter+N.hab.bern.par[isp])]=MCMC$Hab.bern[isp,,1:N.hab.bern.par[isp]]
+      col.names=c(col.names,paste("Hab.bern.sp",isp,Hab.bern.names[[isp]],sep=''))
+      counter=counter+sum(N.hab.bern.par[isp])
+    }   
   }
   Mat[,(counter+1):(counter+ncol(MCMC$Det))]=as.matrix(MCMC$Det)
   col.names=c(col.names,paste("Det.",Det.names,sep=''))
@@ -638,8 +663,13 @@ convert.HDS.to.mcmc<-function(MCMC,N.hab.par,Cov.par.n,Hab.names,Det.names,Cov.n
     counter=counter+1
   }
   if(spat.ind==FALSE){
-    Mat[,(counter+1):(counter+n.species)]=t(MCMC$tau.eta)
-    col.names=c(col.names,paste("tau.eta.sp",c(1:n.species),sep=''))
+    Mat[,(counter+1):(counter+n.species)]=t(MCMC$tau.eta.pois)
+    col.names=c(col.names,paste("tau.eta.pois.sp",c(1:n.species),sep=''))
+    counter=counter+n.species
+  }
+  if(spat.ind==FALSE & i.ZIP){
+    Mat[,(counter+1):(counter+n.species)]=t(MCMC$tau.eta.bern)
+    col.names=c(col.names,paste("tau.eta.bern.sp",c(1:n.species),sep=''))
     counter=counter+n.species
   }
   if(fix.tau.nu==FALSE){

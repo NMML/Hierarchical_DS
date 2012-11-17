@@ -2,9 +2,15 @@
 #' 
 #' @param Par 	A list comprised of the following parameters:
 #' 		"det": a vector giving the current iteration's linear model parameters for the detection model;
-#' 		"hab": a vector giving the current iteration's linear model parameters for abundance intensity;
+#' 		"hab.pois": a vector giving the current iteration's linear model parameters for Poisson abundance intensity; each row gives parameters for a particular species
+#'   	"hab.bern": a vector giving the current iteration's linear model parameters for Bernoulli part of ZIP model for abundance (if Meta$ZIP=TRUE)
 #' 		"cor": a correlation parameter for detections that's an increasing function of distance (correlation at the maximum distance);
 #' 		"Nu": a vector giving the log of the abundance intensity for each strata;
+#'    "Eta.pois": If Meta$spat.ind==FALSE, spatial random effects for Poisson abundance model; one for each cell and for each species
+#'    "Eta.bern": If Meta$spat.ind==FALSE & Meta$ZIP=TRUE, spatial random effects for Bernoulli abundance model; one for each cell and for each species
+#'	  "tau.eta.pois": If Meta$spat.ind==FALSE, precision for spatial ICAR model(s) for the Poisson component
+#'    "tau.eta.bern": If Meta$spat.ind==FALSE & Meta$ZIP=TRUE, precision for spatial ICAR model(s) for the Bernoulli component
+#'	  "tau.nu": Precision for Nu (overdispersion relative to the Poisson distribution)
 #' 		"G": a vector giving the number of groups of animals in each strata; 
 #' 		"N": a vector giving the number of animals in each strata
 #' 		"MisID": a list, each entry i of which is a vector holding the parameters for the ith misID model
@@ -22,10 +28,10 @@
 #' 				ranges prior to final MCMC run; 
 #'	"MH.cor": Metropolis-hastings tuning parameter for updating the correlation parameter (if Meta$point.ind==TRUE);
 #'	"MH.nu": MH tuning parameter for Nu parameters (Langevin-Hastings multivariate update);
-#'	"MH.beta": A matrix of tuning parameters for betas of the abundance process (nrows=number of species, ncol = max number of columns of habitat DM);
 #'	"RJ.N": A vector giving the maximum number of additions and deletions proposed in an iteration of the RJMCMC algorithm for each transect
 #'  "iter.fix.N"  Number of iterations to skip RJMCMC step 
-#' @param DM.hab	A design matrix for the log of abundance intensity
+#' @param DM.pois.hab	A design matrix for the Poisson model for abundance intensity (log scale)
+#' @param DM.bern.hab If Meta$ZIP=TRUE, a design matrix for the Bernoulli zero model (probit scale)
 #' @param DM.det	A design matrix for the probit of detection probability
 #' @param Q			An inverse precision matrix for the spatial ICAR process
 #' @param Prior.pars	A list object giving parameters of prior distribution.  Includes the following objects
@@ -64,6 +70,7 @@
 #'  "Cov.prior.parms"	An (n.species X n X n.ind.cov) array providing "pseudo-prior" parameters for individual covarate distributions (only the first row used if a signle parameter distribution)
 #'  "Cov.prior.fixed" indicator vector for whether parameters of each covariate distribution should be fixed within estimation routine
 #'  "Cov.prior.n" 	(#species X #covariates) Matrix giving number of parameters in each covariate pdf 
+#'  "ZIP"  If TRUE, fit a ZIP model to abundance
 #'  "point.ind"		Indicator for whether point independence assumed (if no, then no correlation modeled b/w multiple observers as function of distance)
 #'  "last.ind" If TRUE (and point.ind=TRUE), point independence operates by assuming 0 dependence at the farthest bin
 #'  "cor.const" If TRUE, forces estimates of correlation associated with point independence to be positive if last.ind==FALSE or negative if last.ind==TRUE (default is FALSE)
@@ -75,14 +82,15 @@
 #'  "misID.models"  A formula vector providing linar model-type formulas for each positive value of misID.mat. 
 #'  "misID.symm"    If TRUE, classification probabilities assumed to be symmetric (e.g. pi^{2|1}=pi^{1|2})
 #'  "N.par.misID"   A vector specifying the number of parameters needed for each misID model
-#'  "N.hab.par"	    A vector specifying the number of parameters needed for each species' habitat model
+#'  "N.hab.pois.par"	    A vector specifying the number of parameters needed for each species' Poisson abundance model
+#'  "N.hab.bern.par"    If fitting a ZIP model, this vector specifying the number of parameters needed for each species' Bernoulli zero model
 #'  "post.loss"  If TRUE, observed and predicted detections are compiled for posterior predictive loss 
 #' @return returns a list with the following objects: 
 #' 	"MCMC": An 'mcmc' object (see 'coda' R package) containing posterior samples;
 #'  "Accept": A list object indicating the number of proposals that were accepted for parameters updated via Metropolis- or Langevin-Hastings algorithms;
 #'  "Control": A list object giving MCMC tuning parameters (which are updated if the 'adapt' alorithm is used) 
 #'  "Obs.N":  Records latent abundance in each transect; dimension is (n.species X # samples X # transects)
-#'  "Pred.N": Posterior predictive distribution for abundance in each transect; obtained by sampling a Poisson distribution given current parameter values
+#'  "Pred.N": Posterior predictive distribution for abundance in each transect; obtained by sampling a Poisson distribution given current parameter values (with possible zero inflation)
 #'  "Post": Holds posterior samples for strata specific group sizes ("Post$G") and abundance ("Post$N")
 #'  "Obs.det":  if Meta$post.loss=TRUE, an array holding observed detection types for posterior predictive loss calculations dim = c(n.transects,n.obs.types,n.obs.types) 
 #'  "Pred.det": if Meta$post.loss=TRUE, an array holding predicted detection types for posterior predictive loss calculations dim = c(n.mcmc.iter,n.transects,n.obs.types,n.obs.types)
@@ -91,7 +99,7 @@
 #' @keywords areal, data augmentation, distance sampling, mcmc, reversible jump
 #' @author Paul B. Conn
 
-mcmc_ds<-function(Par,Data,cur.iter,adapt,Control,DM.hab,DM.det,Q,Prior.pars,Meta){	
+mcmc_ds<-function(Par,Data,cur.iter,adapt,Control,DM.hab.pois,DM.hab.bern=NULL,DM.det,Q,Prior.pars,Meta){	
 	#require(mvtnorm)
 	#require(Matrix)
 	#require(truncnorm)
@@ -133,6 +141,23 @@ mcmc_ds<-function(Par,Data,cur.iter,adapt,Control,DM.hab,DM.det,Q,Prior.pars,Met
 			}
 		}
 	}
+  
+  #in case of ZIP model, initialize Z, Z.tilde
+  if(Meta$ZIP){
+    Z=matrix(0,Meta$n.species,Meta$S)
+    #start all zeros as arising from Bernoulli component
+    Z[Par$G>0]=1    
+    Z.tilde=matrix(0,Meta$n.species,Meta$S)
+    G.gt0=(Par$G>0)
+    G.eq0=(Par$G==0)
+    for(isp in 1:Meta$n.species){
+      n.gt0=sum(G.gt0[isp,])
+      n.eq0=sum(G.eq0[isp,])
+      ExpZ=DM.hab.bern[[isp]]%*%Par$hab.bern[isp,]
+      if(n.gt0>0)Z.tilde[isp,which(G.gt0[isp,]==1)]=rtruncnorm(n.gt0,a=0,b=Inf,ExpZ[G.gt0[isp,]],1)
+      if(n.eq0>0)Z.tilde[isp,which(G.eq0[isp,]==1)]=rtruncnorm(n.eq0,a=-Inf,b=0,ExpZ[G.eq0[isp,]],1)
+    }
+  }
 
 	#initialize lambda
 	Lambda=matrix(0,Meta$n.species,Meta$S)
@@ -145,35 +170,68 @@ mcmc_ds<-function(Par,Data,cur.iter,adapt,Control,DM.hab,DM.det,Q,Prior.pars,Met
 	
 	
 	#initialize statistics/matrices needed for MCMC updates
-	XpXinv.hab=vector('list',Meta$n.species)
-	XpXinvXp.hab=XpXinv.hab
+	XpXinv.pois=vector('list',Meta$n.species)
+	XpXinvXp.pois=XpXinv.pois
 	for(isp in 1:Meta$n.species){
-		XpXinv.hab[[isp]]=solve(crossprod(DM.hab[[isp]]))
-		XpXinvXp.hab[[isp]]=XpXinv.hab[[isp]]%*%t(DM.hab[[isp]])
+		XpXinv.pois[[isp]]=solve(crossprod(DM.hab.pois[[isp]]))
+		XpXinvXp.pois[[isp]]=XpXinv.pois[[isp]]%*%t(DM.hab.pois[[isp]])
 	}
+  
+  if(Meta$ZIP){
+    XpXinv.bern=vector('list',Meta$n.species)
+    XpXinvXp.bern=XpXinv.bern
+    for(isp in 1:Meta$n.species){
+      XpXinv.bern[[isp]]=solve(crossprod(DM.hab.bern[[isp]]))
+      XpXinvXp.bern[[isp]]=XpXinv.bern[[isp]]%*%t(DM.hab.bern[[isp]])
+    }
+  }
 
 	if(Meta$srr){
-		L.t=XpXinv.hab
-		L=L.t
-		Qt=L.t
-		cross.L=L.t
-		Theta=L.t
-		N.theta=rep(0,Meta$n.species)
+		L.t.pois=XpXinv.pois
+		L.pois=L.t.pois
+		Qt.pois=L.t.pois
+		cross.L.pois=L.t.pois
+		Theta.pois=L.t.pois
+		N.theta.pois=rep(0,Meta$n.species)
 		for(isp in 1:Meta$n.species){
-			P.c=diag(Meta$S)-DM.hab[[isp]]%*%solve(crossprod(DM.hab[[isp]]),t(DM.hab[[isp]]))
+			P.c=diag(Meta$S)-DM.hab.pois[[isp]]%*%solve(crossprod(DM.hab.pois[[isp]]),t(DM.hab.pois[[isp]]))
 			Omega=(P.c%*%Meta$Adj%*%P.c)*(Meta$S/sum(Meta$Adj))
 			Eigen=eigen(Omega)
 			if(max(Eigen$values)<Meta$srr.tol)cat(paste("\n Error: maximum eigenvalue (",max(Eigen$values),") < Meta$srr.tol; decrease srr.tol"))
 			Ind=which(Eigen$values>Meta$srr.tol)
-			L.t[[isp]]=Eigen$vectors[,Ind]
+			L.t.pois[[isp]]=Eigen$vectors[,Ind]
 			cat(paste("\n",length(Ind)," eigenvectors selected for spatially restricted regression \n"))
-			L[[isp]]=t(L.t[[isp]])
-			Qt[[isp]]=L[[isp]]%*%Q%*%L.t[[isp]]
-			cross.L[[isp]]=L[[isp]]%*%L.t[[isp]]
-			N.theta[isp]=nrow(Qt[[isp]])
-			Theta[[isp]]=rnorm(N.theta[isp],0,sqrt(1/Par$tau.eta[isp]))
+			L.pois[[isp]]=t(L.t.pois[[isp]])
+			Qt.pois[[isp]]=L.pois[[isp]]%*%Q%*%L.t.pois[[isp]]
+			cross.L.pois[[isp]]=L.pois[[isp]]%*%L.t.pois[[isp]]
+			N.theta.pois[isp]=nrow(Qt.pois[[isp]])
+			Theta.pois[[isp]]=rnorm(N.theta.pois[isp],0,sqrt(1/Par$tau.eta.pois[isp]))
 		}
+    if(Meta$ZIP){
+      L.t.bern=XpXinv.bern
+      L.bern=L.t.bern
+      Qt.bern=L.t.bern
+      cross.L.bern=L.t.bern
+      Theta.bern=L.t.bern
+      N.theta.bern=rep(0,Meta$n.species)
+      for(isp in 1:Meta$n.species){
+        P.c=diag(Meta$S)-DM.hab.bern[[isp]]%*%solve(crossprod(DM.hab.bern[[isp]]),t(DM.hab.bern[[isp]]))
+        Omega=(P.c%*%Meta$Adj%*%P.c)*(Meta$S/sum(Meta$Adj))
+        Eigen=eigen(Omega)
+        if(max(Eigen$values)<Meta$srr.tol)cat(paste("\n Error: maximum eigenvalue (",max(Eigen$values),") < Meta$srr.tol; decrease srr.tol"))
+        Ind=which(Eigen$values>Meta$srr.tol)
+        L.t.bern[[isp]]=Eigen$vectors[,Ind]
+        cat(paste("\n",length(Ind)," eigenvectors selected for spatially restricted regression \n"))
+        L.bern[[isp]]=t(L.t.bern[[isp]])
+        Qt.bern[[isp]]=L.bern[[isp]]%*%Q%*%L.t.bern[[isp]]
+        cross.L.bern[[isp]]=L.bern[[isp]]%*%L.t.bern[[isp]]
+        N.theta.bern[isp]=nrow(Qt.bern[[isp]])
+        Theta.bern[[isp]]=rnorm(N.theta.bern[isp],0,sqrt(1/Par$tau.eta.bern[isp]))
+      }
+    }
 	}
+  
+  
 	Sampled=unique(Meta$Mapping)
 	n.unique=length(Sampled)
 	Sampled.area.by.strata=rep(0,n.unique)
@@ -181,14 +239,18 @@ mcmc_ds<-function(Par,Data,cur.iter,adapt,Control,DM.hab,DM.det,Q,Prior.pars,Met
 	
 	#initialize MCMC, Acceptance rate matrices
 	mcmc.length=(Control$iter-Control$burnin)/Control$thin
-	MCMC=list(N.tot=matrix(0,Meta$n.species,mcmc.length),N=array(0,dim=c(Meta$n.species,mcmc.length,Meta$S)),G=array(0,dim=c(Meta$n.species,mcmc.length,Meta$S)),Hab=array(0,dim=c(Meta$n.species,mcmc.length,ncol(Par$hab))),Det=data.frame(matrix(0,mcmc.length,length(Par$det))),cor=rep(0,mcmc.length),tau.eta=matrix(0,Meta$n.species,mcmc.length),tau.nu=matrix(0,Meta$n.species,mcmc.length),Cov.par=array(0,dim=c(Meta$n.species,mcmc.length,length(Par$Cov.par[1,,]))))
-	if(Meta$misID){
+  MCMC=list(N.tot=matrix(0,Meta$n.species,mcmc.length),N=array(0,dim=c(Meta$n.species,mcmc.length,Meta$S)),G=array(0,dim=c(Meta$n.species,mcmc.length,Meta$S)),Hab.pois=array(0,dim=c(Meta$n.species,mcmc.length,ncol(Par$hab.pois))),Det=data.frame(matrix(0,mcmc.length,length(Par$det))),cor=rep(0,mcmc.length),tau.eta.pois=matrix(0,Meta$n.species,mcmc.length),tau.nu=matrix(0,Meta$n.species,mcmc.length),Cov.par=array(0,dim=c(Meta$n.species,mcmc.length,length(Par$Cov.par[1,,]))))
+  if(Meta$ZIP){
+    MCMC$Hab.bern=array(0,dim=c(Meta$n.species,mcmc.length,ncol(Par$hab.bern)))
+    MCMC$tau.eta.bern=matrix(0,Meta$n.species,mcmc.length)
+  }
+  if(Meta$misID){
     MCMC$MisID=vector("list",length(Meta$N.par.misID))
     for(ipar in 1:length(Meta$N.par.misID))MCMC$MisID[[ipar]]=matrix(0,Meta$N.par.misID[ipar],mcmc.length)
 	}
   #colnames(MCMC$Hab)=colnames(DM.hab)
 	if(Meta$detect)colnames(MCMC$Det)=colnames(DM.det)
-	if(Meta$misID==TRUE){
+	if(Meta$misID){
 		Accept=list(cor=0,N=matrix(0,Meta$n.species,Meta$n.transects),Nu=matrix(0,Meta$n.species,n.unique),MisID=vector("list",length(Meta$N.par.misID)))
 		for(ipar in 1:length(Meta$N.par.misID))Accept$MisID[[ipar]]=rep(0,Meta$N.par.misID[ipar])
 	}
@@ -232,7 +294,8 @@ mcmc_ds<-function(Par,Data,cur.iter,adapt,Control,DM.hab,DM.det,Q,Prior.pars,Met
 			}
 		}
 	}
-	
+	Obs.det=NA
+  Pred.det=NA
 	if(Meta$post.loss){ #calculate observed counts of different detection types, initialize prediction arrays
     Obs.det=array(0,dim=c(Meta$n.transects,Meta$n.species+2,Meta$n.species+2)) #row/col=1 is 'undetected'
     Pred.det=array(0,dim=c(mcmc.length,Meta$n.transects,Meta$n.species+2,Meta$n.species+2))
@@ -275,64 +338,93 @@ mcmc_ds<-function(Par,Data,cur.iter,adapt,Control,DM.hab,DM.det,Q,Prior.pars,Met
 	for(iiter in 1:cur.iter){
 		#cat(paste('\n ', iiter))
 		for(isp in 1:Meta$n.species){		
-		########## update abundance parameters at the strata scale   ################
+		  
+		  #update nu parameters (log lambda)
+	 	  #1) for sampled cells for which z-tilde>0 (if ZIP)
+			Hab.pois=Par$hab.pois[isp,1:Meta$N.hab.pois.par[isp]]
+	 	  Eta.pois=Par$Eta.pois[isp,]
+		  Mu=DM.hab.pois[[isp]]%*%Hab.pois+Eta.pois
+		  G.sampled=rep(0,n.unique) #total number of groups currently in each sampled strata
+		  for(i in 1:Meta$n.transects)G.sampled[Sampled==Meta$Mapping[i]]=G.sampled[Sampled==Meta$Mapping[i]]+Meta$G.transect[isp,i]
+      for(i in 1:n.unique){
+        if(!Meta$ZIP|Z[Sampled[i]]==1){
+		      prop=Par$Nu[isp,Sampled[i]]+runif(1,-Control$MH.nu[isp,i],Control$MH.nu[isp,i])				
+		      old.post=dnorm(Par$Nu[isp,Sampled[i]],Mu[Sampled[i]],1/sqrt(Par$tau.nu[isp]),log=TRUE)+dpois(G.sampled[i],Sampled.area.by.strata[i]*exp(Par$Nu[isp,Sampled[i]]),log=TRUE)
+		      new.post=dnorm(prop,Mu[Sampled[i]],1/sqrt(Par$tau.nu[isp]),log=TRUE)+dpois(G.sampled[i],Sampled.area.by.strata[i]*exp(prop),log=TRUE)
+		      if(runif(1)<exp(new.post-old.post)){
+		        Par$Nu[isp,Sampled[i]]=prop
+		        Accept$Nu[isp,i]=Accept$Nu[isp,i]+1
+		      }
+        }
+		  }
 		
-		#update nu parameters (log lambda)
-		#1) for sampled cells
-			Hab=Par$hab[isp,1:Meta$N.hab.par[isp]]
-			Eta=Par$Eta[isp,]
-			Mu=DM.hab[[isp]]%*%Hab+Eta
-			if(DEBUG){
-				Par$hab[1,]=c(log(40),0,0) 
-				Par$hab[2,]=c(log(10),0,0)
-				Par$Nu[isp,Sampled]=Mu[Sampled]
-			}
-			else{
-				G.sampled=rep(0,n.unique) #total number of groups currently in each sampled strata
-				for(i in 1:Meta$n.transects)G.sampled[Sampled==Meta$Mapping[i]]=G.sampled[Sampled==Meta$Mapping[i]]+Meta$G.transect[isp,i]
-				for(i in 1:n.unique){
-					prop=Par$Nu[isp,Sampled[i]]+runif(1,-Control$MH.nu[isp,i],Control$MH.nu[isp,i])				
-					old.post=dnorm(Par$Nu[isp,Sampled[i]],Mu[Sampled[i]],1/sqrt(Par$tau.nu[isp]),log=TRUE)+dpois(G.sampled[i],Sampled.area.by.strata[i]*exp(Par$Nu[isp,Sampled[i]]),log=TRUE)
-					new.post=dnorm(prop,Mu[Sampled[i]],1/sqrt(Par$tau.nu[isp]),log=TRUE)+dpois(G.sampled[i],Sampled.area.by.strata[i]*exp(prop),log=TRUE)
-					if(runif(1)<exp(new.post-old.post)){
-						Par$Nu[isp,Sampled[i]]=prop
-						Accept$Nu[isp,i]=Accept$Nu[isp,i]+1
-					}
-				}
-			}
 			#2) simulate nu for areas not sampled
 			Par$Nu[isp,-Sampled]=rnorm(Meta$S-n.unique,Mu[-Sampled],1/sqrt(Par$tau.nu[isp]))
-		
-		
+		  #3) if ZIP, sample nu for areas where z.tilde<0
+      if(Meta$ZIP){
+        which.Z.eq0=which(Z[isp,]==0)   
+        sampled.Z0=which.Z.eq0[which.Z.eq0%in%Sampled]
+        if(length(sampled.Z0)>0)Par$Nu[isp,sampled.Z0]=rnorm(length(sampled.Z0),Mu[sampled.Z0],1/sqrt(Par$tau.nu[isp]))
+      }
+		  if(PROFILE==TRUE){
+		    cat(paste("Nu: ", (Sys.time()-st),'\n'))
+		    st=Sys.time()
+		  } 
+			########## update abundance parameters at the strata scale   ################
+			#update Z,Z.tilde if ZIP model specified
+			if(Meta$ZIP){
+			  Z[isp,which(Par$G[isp,]>0)]=1
+			  Which.0=which(Par$G[isp,]==0)
+			  Cur.p=pnorm(DM.hab.bern[[isp]]%*%Par$hab.bern[isp,]+Par$Eta.bern[isp,]) #bernoulli success prob
+			  Cur.pois0=Cur.p*exp(-Meta$Area.hab*exp(Mu))
+			  Cur.p=Cur.pois0/((1-Cur.p)+Cur.pois0)
+			  if(length(Which.0)>0)Z[isp,which(Par$G[isp,]==0)]=rbern(length(Which.0),Cur.p[Which.0])
+			  Z.tilde[isp,]=rtruncnorm(S,a=ifelse(Z[isp,]==1,0,-Inf),b=ifelse(Z[isp,]==1,Inf,0),DM.hab.bern[[isp]]%*%Par$hab.bern[isp,]+Par$Eta.bern[isp,])       
+			}
+			
+      #update spatial random effects
 			if(Meta$spat.ind==FALSE){
 				if(Meta$srr==FALSE){
 					#update eta parameters (spatial random effects)
-					V.eta.inv <- Par$tau.nu[isp]*diag(Meta$S) + Par$tau.eta[isp]*Q
-					M.eta <- solve(V.eta.inv, Par$tau.nu[isp]*(Par$Nu[isp,]-DM.hab[[isp]]%*%Hab))		
-					Par$Eta[isp,]<-as.vector(M.eta+solve(chol(V.eta.inv),rnorm(Meta$S,0,1)))
-					Par$Eta[isp,]=Par$Eta[isp,]-mean(Par$Eta[isp,])  #centering
-					
+					V.eta.inv <- Par$tau.nu[isp]*diag(Meta$S) + Par$tau.eta.pois[isp]*Q
+					M.eta <- solve(V.eta.inv, Par$tau.nu[isp]*(Par$Nu[isp,]-DM.hab.pois[[isp]]%*%Hab.pois))		
+					Par$Eta.pois[isp,]<-as.vector(M.eta+solve(chol(V.eta.inv),rnorm(Meta$S,0,1)))
+					Par$Eta.pois[isp,]=Par$Eta.pois[isp,]-mean(Par$Eta.pois[isp,])  #centering
 					#update tau_eta  (precision of spatial process)
-					Par$tau.eta[isp] <- rgamma(1, (Meta$S-1)*0.5 + Prior.pars$a.eta, as.numeric(crossprod(Par$Eta[isp,], Q %*% Par$Eta[isp,])*0.5) + Prior.pars$b.eta)
+					Par$tau.eta.pois[isp] <- rgamma(1, (Meta$S-1)*0.5 + Prior.pars$a.eta, as.numeric(crossprod(Par$Eta.pois[isp,], Q %*% Par$Eta.pois[isp,])*0.5) + Prior.pars$b.eta)
+          if(Meta$ZIP){
+            Hab.bern=Par$hab.bern[isp,]
+            V.eta.inv <- diag(Meta$S) + Par$tau.eta.bern[isp]*Q
+            M.eta <- solve(V.eta.inv, Z.tilde[isp,]-DM.hab.bern[[isp]]%*%Hab.bern)		
+            Par$Eta.bern[isp,]<-as.vector(M.eta+solve(chol(V.eta.inv),rnorm(Meta$S,0,1)))
+            Par$Eta.bern[isp,]=Par$Eta.bern[isp,]-mean(Par$Eta.bern[isp,])  #centering
+            #update tau_eta  (precision of spatial process)
+            Par$tau.eta.bern[isp] <- rgamma(1, (Meta$S-1)*0.5 + Prior.pars$a.eta, as.numeric(crossprod(Par$Eta.bern[isp,], Q %*% Par$Eta.bern[isp,])*0.5) + Prior.pars$b.eta)            
+					}
 				}
 				else{
 					#Update Theta
-					Dat.minus.Exp=Par$Nu[isp,]-DM.hab[[isp]]%*%Hab
-					V.eta.inv <- cross.L[[isp]]*Par$tau.nu[isp] + Par$tau.eta[isp]*Qt[[isp]]
-					M.eta <- solve(V.eta.inv, Par$tau.nu[isp]*L[[isp]]%*%Dat.minus.Exp)
-					Theta <- M.eta + solve(chol(as.matrix(V.eta.inv)), rnorm(N.theta[isp],0,1))
-					Par$Eta[isp,]=as.numeric(L.t[[isp]]%*%Theta)
-					
+					Dat.minus.Exp=Par$Nu[isp,]-DM.hab.pois[[isp]]%*%Hab.pois
+					V.eta.inv <- cross.L.pois[[isp]]*Par$tau.nu[isp] + Par$tau.eta.pois[isp]*Qt.pois[[isp]]
+					M.eta <- solve(V.eta.inv, Par$tau.nu[isp]*L.pois[[isp]]%*%Dat.minus.Exp)
+					Theta.pois <- M.eta + solve(chol(as.matrix(V.eta.inv)), rnorm(N.theta.pois[isp],0,1))
+					Par$Eta.pois[isp,]=as.numeric(L.t.pois[[isp]]%*%Theta.pois)					
 					#update tau.eta
-					Par$tau.eta[isp] <- rgamma(1, N.theta[isp]*0.5 + Prior.pars$a.eta, as.numeric(crossprod(Theta, Qt[[isp]] %*% Theta)*0.5) + Prior.pars$b.eta)
+					Par$tau.eta.pois[isp] <- rgamma(1, N.theta.pois[isp]*0.5 + Prior.pars$a.eta, as.numeric(crossprod(Theta.pois, Qt.pois[[isp]] %*% Theta.pois)*0.5) + Prior.pars$b.eta)
+          if(Meta$ZIP){
+            Hab.bern=Par$hab.bern[isp,]
+            Dat.minus.Exp=Z.tilde[isp,]-DM.hab.bern[[isp]]%*%Hab.bern
+            V.eta.inv <- cross.L.bern[[isp]] + Par$tau.eta.bern[isp]*Qt.bern[[isp]]
+            M.eta <- solve(V.eta.inv, L.bern[[isp]]%*%Dat.minus.Exp)
+            Theta.bern <- M.eta + solve(chol(as.matrix(V.eta.inv)), rnorm(N.theta.bern[isp],0,1))
+            Par$Eta.bern[isp,]=as.numeric(L.t.bern[[isp]]%*%Theta.bern)	
+            #update tau.eta
+            Par$tau.eta.bern[isp] <- rgamma(1, N.theta.bern[isp]*0.5 + Prior.pars$a.eta, as.numeric(crossprod(Theta.bern, Qt.bern[[isp]] %*% Theta.bern)*0.5) + Prior.pars$b.eta)
+          }
 				}
 			}
-			if(PROFILE==TRUE){
-				cat(paste("Nu: ", (Sys.time()-st),'\n'))
-				st=Sys.time()
-			}
 			#update tau_nu	 (precision for Poisson overdispersion)
-			Mu=DM.hab[[isp]]%*%Hab+Par$Eta[isp,]
+			Mu=DM.hab.pois[[isp]]%*%Hab.pois+Par$Eta.pois[isp,]
 			if(Meta$fix.tau.nu==FALSE){
 				Diff=Par$Nu[isp,Sampled]-Mu[Sampled]
 				Par$tau.nu[isp] <- rgamma(1,n.unique/2 + Prior.pars$a.nu, as.numeric(crossprod(Diff,Diff))*0.5 + Prior.pars$b.nu)
@@ -341,17 +433,18 @@ mcmc_ds<-function(Par,Data,cur.iter,adapt,Control,DM.hab,DM.det,Q,Prior.pars,Met
 				cat(paste("Tau nu: ", (Sys.time()-st),'\n'))
 				st=Sys.time()
 			}
-			
-			#translate to lambda scale
-			Lambda[isp,]=exp(Par$Nu[isp,])*Meta$Area.hab
-			Lambda.trans[isp,]=Lambda[isp,Meta$Mapping]*Meta$Area.trans
 
+			#translate to lambda scale 
+      Lambda[isp,]=exp(Par$Nu[isp,])*Meta$Area.hab  
+		  if(Meta$ZIP)Lambda[isp,]=Lambda[isp,]*Z[isp,] 
+			Lambda.trans[isp,]=Lambda[isp,Meta$Mapping]*Meta$Area.trans
 
 			if(DEBUG==FALSE){
 				#update Betas for habitat relationships
-				Hab=rmvnorm(1,XpXinvXp.hab[[isp]]%*%(Par$Nu[isp,]-Par$Eta[isp,]),XpXinv.hab[[isp]]/(Par$tau.nu[isp]+Prior.pars$beta.tau))
-				Par$hab[isp,1:Meta$N.hab.par[isp]]=Hab
+			  Par$hab.pois[isp,1:Meta$N.hab.pois.par[isp]]=rmvnorm(1,XpXinvXp.pois[[isp]]%*%(Par$Nu[isp,]-Par$Eta.pois[isp,]),XpXinv.pois[[isp]]/(Par$tau.nu[isp]+Prior.pars$beta.tau))
+        if(Meta$ZIP)Par$hab.bern[isp,1:Meta$N.hab.bern.par[isp]]=rmvnorm(1,XpXinvXp.bern[[isp]]%*%(Z.tilde[isp,]-Par$Eta.bern[isp,]),XpXinv.bern[[isp]]/(1+Prior.pars$beta.tau))
 			}
+		  
 			########## update group abundance at strata level
 			Par$G[isp,]=rpois(Meta$S,Lambda[isp,]*(1-Meta$Covered.area))
 			grp.lam[isp]=ifelse(Meta$Cov.prior.pdf[isp,1] %in% c("pois1_ln","poisson_ln"),exp(Par$Cov.par[isp,1,1]+(Par$Cov.par[isp,2,1])^2/2),Par$Cov.par[isp,1,1])
@@ -362,7 +455,7 @@ mcmc_ds<-function(Par,Data,cur.iter,adapt,Control,DM.hab,DM.det,Q,Prior.pars,Met
 	    }
 		
 			if(PROFILE==TRUE){
-				cat(paste("Hab, etc.: ", (Sys.time()-st),'\n'))
+				cat(paste("Habitat vars, etc.: ", (Sys.time()-st),'\n'))
 				st=Sys.time()
 			}
 			########## update abundance, distances, ind. covariates for observed transects using RJMCMC  #############
@@ -403,9 +496,9 @@ mcmc_ds<-function(Par,Data,cur.iter,adapt,Control,DM.hab,DM.det,Q,Prior.pars,Met
 							if(runif(1)<MH.prob){
 								Meta$G.transect[isp,itrans]=Meta$G.transect[isp,itrans]+a
 								n.Records[isp,itrans]=Meta$G.transect[isp,itrans]*Meta$n.Observers[itrans]
-								if(Meta$grps==FALSE)Meta$N.transect[isp,itrans]=Meta$G.transect[isp,itrans]
+                if(Meta$grps==FALSE)Meta$N.transect[isp,itrans]=Meta$G.transect[isp,itrans]
 								else Meta$N.transect[isp,itrans]=sum(Data[isp,itrans,1:n.Records[isp,itrans],Meta$stacked.names=="Group"])/Meta$n.Observers[itrans]
-								Accept$N[isp,itrans]=Accept$N[isp,itrans]+1
+                Accept$N[isp,itrans]=Accept$N[isp,itrans]+1
 								#generate Y-tilde values
 								Tmp=matrix(ExpY,a,Meta$n.Observers[itrans],byrow=TRUE)
 								Y.tilde.temp=rtruncnorm(n=a,a=-Inf,b=0,mean=Tmp[,1],sd=1)
@@ -439,8 +532,12 @@ mcmc_ds<-function(Par,Data,cur.iter,adapt,Control,DM.hab,DM.det,Q,Prior.pars,Met
 								Meta$G.transect[isp,itrans]=Meta$G.transect[isp,itrans]+a
 								n.Records[isp,itrans]=Meta$G.transect[isp,itrans]*Meta$n.Observers[itrans]
 								Accept$N[isp,itrans]=Accept$N[isp,itrans]+1
-							}					
-							
+								if(Meta$grps==FALSE)Meta$N.transect[isp,itrans]=Meta$G.transect[isp,itrans]
+								else{
+                  Meta$N.transect[isp,itrans]=0
+                  if(Meta$G.transect[isp,itrans]>0)Meta$N.transect[isp,itrans]=sum(Data[isp,itrans,1:n.Records[isp,itrans],Meta$stacked.names=="Group"])/Meta$n.Observers[itrans]
+								}
+							}												
 						}
 					}
 					
@@ -518,7 +615,10 @@ mcmc_ds<-function(Par,Data,cur.iter,adapt,Control,DM.hab,DM.det,Q,Prior.pars,Met
 						}
 					}
 					if(Meta$grps==FALSE)Meta$N.transect[isp,itrans]=Meta$G.transect[isp,itrans]
-					else Meta$N.transect[isp,itrans]=sum(Data[isp,itrans,1:n.Records[isp,itrans],Meta$stacked.names=="Group"])/Meta$n.Observers[itrans]
+					else{
+					  Meta$N.transect[isp,itrans]=0
+					  if(Meta$G.transect[isp,itrans]>0)Meta$N.transect[isp,itrans]=sum(Data[isp,itrans,1:n.Records[isp,itrans],Meta$stacked.names=="Group"])/Meta$n.Observers[itrans]
+					}
 					
 					
 					#update Y.tilde
@@ -928,18 +1028,24 @@ mcmc_ds<-function(Par,Data,cur.iter,adapt,Control,DM.hab,DM.det,Q,Prior.pars,Met
 				MCMC$G[isp,(iiter-Control$burnin)/Control$thin,]=Par$G[isp,]
 				MCMC$N[isp,(iiter-Control$burnin)/Control$thin,]=Par$N[isp,]
 				MCMC$N.tot[isp,(iiter-Control$burnin)/Control$thin]=sum(Par$N[isp,])
-				MCMC$Hab[isp,(iiter-Control$burnin)/Control$thin,]=Par$hab[isp,]
-				MCMC$tau.eta[isp,(iiter-Control$burnin)/Control$thin]=Par$tau.eta[isp]
+				MCMC$Hab.pois[isp,(iiter-Control$burnin)/Control$thin,]=Par$hab.pois[isp,]
+				MCMC$tau.eta.pois[isp,(iiter-Control$burnin)/Control$thin]=Par$tau.eta.pois[isp]
+        if(Meta$ZIP){
+				  MCMC$Hab.bern[isp,(iiter-Control$burnin)/Control$thin,]=Par$hab.bern[isp,]
+				  MCMC$tau.eta.bern[isp,(iiter-Control$burnin)/Control$thin]=Par$tau.eta.bern[isp]
+        }
 				MCMC$tau.nu[isp,(iiter-Control$burnin)/Control$thin]=Par$tau.nu[isp]
 				MCMC$Cov.par[isp,(iiter-Control$burnin)/Control$thin,]=Par$Cov.par[isp,,]
 				Obs.N[isp,(iiter-Control$burnin)/Control$thin,]=Meta$N.transect[isp,]
-				Temp.G=Meta$Area.hab[Meta$Mapping]*Meta$Area.trans*exp(rnorm(Meta$n.transects,(DM.hab[[isp]]%*%Par$hab[isp,1:Meta$N.hab.par[isp]]+Par$Eta[isp,])[Meta$Mapping],sqrt(1/Par$tau.nu[isp])))
-				Pred.N[isp,(iiter-Control$burnin)/Control$thin,]=Temp.G+rpois(Meta$n.transects,grp.lam[isp]*Temp.G)	
+				Temp.G=Meta$Area.hab[Meta$Mapping]*Meta$Area.trans*exp(rnorm(Meta$n.transects,(DM.hab.pois[[isp]]%*%Par$hab.pois[isp,1:Meta$N.hab.pois.par[isp]]+Par$Eta.pois[isp,])[Meta$Mapping],sqrt(1/Par$tau.nu[isp])))
+        if(Meta$ZIP)Temp.G=Temp.G*rbern(Meta$n.transects,pnorm((DM.hab.bern[[isp]]%*%Par$hab.bern[isp,1:Meta$N.hab.bern.par[isp]]+Par$Eta.bern[isp,])[Meta$Mapping]))
+        Pred.N[isp,(iiter-Control$burnin)/Control$thin,]=Temp.G+rpois(Meta$n.transects,grp.lam[isp]*Temp.G)	
 			}
-      #posterior predictions of detection data given nu, detection & misclasification parameters
+       #posterior predictions of detection data given nu, detection & misclasification parameters
 			if(Meta$post.loss){ #calculate observed counts of different detection types, initialize prediction arrays
-        Sigma=diag(2)
-        Cur.G=matrix(rpois(Meta$n.species*Meta$n.transects,exp(Par$Nu[isp,itrans])),Meta$n.species,Meta$n.transects)			              
+         Sigma=diag(2)
+        Cur.G=matrix(rpois(Meta$n.species*Meta$n.transects,exp(Par$Nu)),Meta$n.species,Meta$n.transects)		
+        if(Meta$ZIP)Cur.G=Z*Cur.G
         for(itrans in 1:Meta$n.transects){
           for(isp in 1:Meta$n.species){
             if(Cur.G[isp,itrans]>0){
@@ -1016,9 +1122,13 @@ mcmc_ds<-function(Par,Data,cur.iter,adapt,Control,DM.hab,DM.det,Q,Prior.pars,Met
 
 	Post=list(N=MCMC$N,G=MCMC$G)
 	#convert Out$MCMC into mcmc object for use with coda, S3 methods
-	Hab.names=vector("list",Meta$n.species)
-	for(isp in 1:Meta$n.species)Hab.names[[isp]]=colnames(DM.hab[[isp]])
-	Det.names=colnames(get_mod_matrix(Cur.dat=matrix(Data[1,1,1,],nrow=1),Meta$stacked.names,Meta$factor.ind,Meta$Det.formula,Meta$Levels))
+	Hab.pois.names=vector("list",Meta$n.species)
+	for(isp in 1:Meta$n.species)Hab.pois.names[[isp]]=colnames(DM.hab.pois[[isp]])
+  if(Meta$ZIP){
+    Hab.bern.names=vector("list",Meta$n.species)
+    for(isp in 1:Meta$n.species)Hab.bern.names[[isp]]=colnames(DM.hab.bern[[isp]])
+  }
+  Det.names=colnames(get_mod_matrix(Cur.dat=matrix(Data[1,1,1,],nrow=1),Meta$stacked.names,Meta$factor.ind,Meta$Det.formula,Meta$Levels))
 	Cov.names=vector("list",Meta$n.ind.cov)
 	Cov.par.n=0
 	if(Meta$n.ind.cov>0){
@@ -1034,8 +1144,18 @@ mcmc_ds<-function(Par,Data,cur.iter,adapt,Control,DM.hab,DM.det,Q,Prior.pars,Met
 		for(imod in 1:max(Meta$misID.mat)){
 			MisID.names[[imod]]=colnames(get_mod_matrix(Cur.dat=matrix(Data[1,1,1,],nrow=1),stacked.names=Meta$stacked.names,factor.ind=Meta$factor.ind,Det.formula=Meta$misID.models[[imod]],Levels=Meta$Levels))		
 		}
-	}																																				
-	MCMC=convert.HDS.to.mcmc(MCMC=MCMC,N.hab.par=Meta$N.hab.par,Cov.par.n=Cov.par.n,Hab.names=Hab.names,Det.names=Det.names,Cov.names=Cov.names,MisID.names=MisID.names,N.par.misID=Meta$N.par.misID,misID.mat=Meta$misID.mat,fix.tau.nu=Meta$fix.tau.nu,misID=Meta$misID,spat.ind=Meta$spat.ind,point.ind=Meta$point.ind)
+	}	
+  if(1==1){
+    if(Meta$ZIP){
+      N.hab.bern.par=Meta$N.hab.bern.par
+      Hab.bern.names=Hab.bern.names
+    }
+    else{
+      N.hab.bern.par=NA
+      Hab.bern.names=NA
+    }
+  }
+	MCMC=convert.HDS.to.mcmc(MCMC=MCMC,N.hab.pois.par=Meta$N.hab.pois.par,N.hab.bern.par=N.hab.bern.par,Cov.par.n=Cov.par.n,Hab.pois.names=Hab.pois.names,Hab.bern.names=Hab.bern.names,Det.names=Det.names,Cov.names=Cov.names,MisID.names=MisID.names,N.par.misID=Meta$N.par.misID,misID.mat=Meta$misID.mat,fix.tau.nu=Meta$fix.tau.nu,misID=Meta$misID,spat.ind=Meta$spat.ind,point.ind=Meta$point.ind)
 	Out=list(Post=Post,MCMC=MCMC,Accept=Accept,Control=Control,Obs.N=Obs.N,Pred.N=Pred.N,Obs.det=Obs.det,Pred.det=Pred.det)
 	Out
 }
