@@ -141,12 +141,12 @@ mcmc_ds<-function(Par,Data,cur.iter,adapt,Control,DM.hab.pois,DM.hab.bern=NULL,D
 			}
 		}
 	}
-  
+ 
+	Z=matrix(1,Meta$n.species,Meta$S)  #need to define for non-ZIP models
   #in case of ZIP model, initialize Z, Z.tilde
   if(Meta$ZIP){
-    Z=matrix(0,Meta$n.species,Meta$S)
     #start all zeros as arising from Bernoulli component
-    Z[Par$G>0]=1    
+    Z[Par$G==0]=0    
     Z.tilde=matrix(0,Meta$n.species,Meta$S)
     G.gt0=(Par$G>0)
     G.eq0=(Par$G==0)
@@ -347,7 +347,7 @@ mcmc_ds<-function(Par,Data,cur.iter,adapt,Control,DM.hab.pois,DM.hab.bern=NULL,D
 		  G.sampled=rep(0,n.unique) #total number of groups currently in each sampled strata
 		  for(i in 1:Meta$n.transects)G.sampled[Sampled==Meta$Mapping[i]]=G.sampled[Sampled==Meta$Mapping[i]]+Meta$G.transect[isp,i]
       for(i in 1:n.unique){
-        if(!Meta$ZIP|Z[Sampled[i]]==1){
+        if(!Meta$ZIP|Z[isp,Sampled[i]]==1){
 		      prop=Par$Nu[isp,Sampled[i]]+runif(1,-Control$MH.nu[isp,i],Control$MH.nu[isp,i])				
 		      old.post=dnorm(Par$Nu[isp,Sampled[i]],Mu[Sampled[i]],1/sqrt(Par$tau.nu[isp]),log=TRUE)+dpois(G.sampled[i],Sampled.area.by.strata[i]*exp(Par$Nu[isp,Sampled[i]]),log=TRUE)
 		      new.post=dnorm(prop,Mu[Sampled[i]],1/sqrt(Par$tau.nu[isp]),log=TRUE)+dpois(G.sampled[i],Sampled.area.by.strata[i]*exp(prop),log=TRUE)
@@ -426,8 +426,10 @@ mcmc_ds<-function(Par,Data,cur.iter,adapt,Control,DM.hab.pois,DM.hab.bern=NULL,D
 			#update tau_nu	 (precision for Poisson overdispersion)
 			Mu=DM.hab.pois[[isp]]%*%Hab.pois+Par$Eta.pois[isp,]
 			if(Meta$fix.tau.nu==FALSE){
-				Diff=Par$Nu[isp,Sampled]-Mu[Sampled]
-				Par$tau.nu[isp] <- rgamma(1,n.unique/2 + Prior.pars$a.nu, as.numeric(crossprod(Diff,Diff))*0.5 + Prior.pars$b.nu)
+        Cur.ind=c(Sampled,which(Z[isp,]==1))
+        Cur.ind=Cur.ind[duplicated(Cur.ind)]
+				Diff=Par$Nu[isp,Cur.ind]-Mu[Cur.ind]
+				Par$tau.nu[isp] <- rgamma(1,length(Cur.ind)/2 + Prior.pars$a.nu, as.numeric(crossprod(Diff,Diff))*0.5 + Prior.pars$b.nu)
 			}
 			if(PROFILE==TRUE){
 				cat(paste("Tau nu: ", (Sys.time()-st),'\n'))
@@ -1041,11 +1043,11 @@ mcmc_ds<-function(Par,Data,cur.iter,adapt,Control,DM.hab.pois,DM.hab.bern=NULL,D
         if(Meta$ZIP)Temp.G=Temp.G*rbern(Meta$n.transects,pnorm((DM.hab.bern[[isp]]%*%Par$hab.bern[isp,1:Meta$N.hab.bern.par[isp]]+Par$Eta.bern[isp,])[Meta$Mapping]))
         Pred.N[isp,(iiter-Control$burnin)/Control$thin,]=Temp.G+rpois(Meta$n.transects,grp.lam[isp]*Temp.G)	
 			}
-       #posterior predictions of detection data given nu, detection & misclasification parameters
+       #posterior predictions of detection data given nu, detection & misclassification parameters
 			if(Meta$post.loss){ #calculate observed counts of different detection types, initialize prediction arrays
          Sigma=diag(2)
         Cur.G=matrix(rpois(Meta$n.species*Meta$n.transects,exp(Par$Nu)),Meta$n.species,Meta$n.transects)		
-        if(Meta$ZIP)Cur.G=Z*Cur.G
+        if(Meta$ZIP)Cur.G=Z*Cur.G         
         for(itrans in 1:Meta$n.transects){
           for(isp in 1:Meta$n.species){
             if(Cur.G[isp,itrans]>0){
@@ -1072,35 +1074,49 @@ mcmc_ds<-function(Par,Data,cur.iter,adapt,Control,DM.hab.pois,DM.hab.bern=NULL,D
                   Cur.dat[,Meta$dist.pl+icov]=rep(rsamp,each=Meta$n.Observers[itrans])
                 }
               }
-              X.temp=get_mod_matrix(Cur.dat=Cur.dat,Meta$stacked.names,Meta$factor.ind,Meta$Det.formula,Meta$Levels)
+              if(Meta$detect)X.temp=get_mod_matrix(Cur.dat=Cur.dat,Meta$stacked.names,Meta$factor.ind,Meta$Det.formula,Meta$Levels)
               if(Meta$n.Observers[itrans]==1){ #in this case, univariate detection; just fill first column of Pred.det
-                Cur.dat[,2]=(rnorm(Cur.G[isp,itrans],X.temp%*%Par$det,1)>0) #probit detection model
-                if(Meta$misID & sum(Cur.dat[,2])>0){ #misID model (if applicable)
-                  Det.ind=which(Cur.dat[,2]==1)
-                  Conf=get_confusion_mat(Cur.dat=matrix(Cur.dat[Det.ind,],nrow=length(Det.ind)),Beta=Par$MisID,misID.mat=Meta$misID.mat,misID.models=Meta$misID.models,misID.symm=Meta$misID.symm,stacked.names=Meta$stacked.names,factor.ind=Meta$factor.ind,Levels=Meta$Levels)  				
-                  for(iind in 1:length(Det.ind)){
-                    cur.sp=sample(1:ncol(Conf[[iind]]),1,prob=Conf[[iind]][isp,])
-                    Pred.det[(iiter-Control$burnin)/Control$thin,itrans,cur.sp+1,1]=Pred.det[(iiter-Control$burnin)/Control$thin,itrans,cur.sp+1,1]+1                    
-                  }  
+                if(Meta$detect==FALSE)Cur.dat[,2]=1
+                else Cur.dat[,2]=(rnorm(Cur.G[isp,itrans],X.temp%*%Par$det,1)>0) #probit detection model
+                if(sum(Cur.dat[,2])>0){ #misID model (if applicable)
+                  if(Meta$misID){
+                    Det.ind=which(Cur.dat[,2]==1)
+                    Conf=get_confusion_mat(Cur.dat=matrix(Cur.dat[Det.ind,],nrow=length(Det.ind)),Beta=Par$MisID,misID.mat=Meta$misID.mat,misID.models=Meta$misID.models,misID.symm=Meta$misID.symm,stacked.names=Meta$stacked.names,factor.ind=Meta$factor.ind,Levels=Meta$Levels)  				
+                    for(iind in 1:length(Det.ind)){
+                      cur.sp=sample(1:ncol(Conf[[iind]]),1,prob=Conf[[iind]][isp,])
+                      Pred.det[(iiter-Control$burnin)/Control$thin,itrans,cur.sp+1,1]=Pred.det[(iiter-Control$burnin)/Control$thin,itrans,cur.sp+1,1]+1                    
+                    }
+                  }
+                  else{
+                    Det.ind=which(Cur.dat[,2]==1)
+                    for(iind in 1:length(Det.ind)){
+                      cur.sp=Cur.dat[Det.ind[iind],3]               
+                      Pred.det[(iiter-Control$burnin)/Control$thin,itrans,cur.sp+1,1]=Pred.det[(iiter-Control$burnin)/Control$thin,itrans,cur.sp+1,1]+1                                        
+                    }
+                  }
                 }
               }              
               else{  #in this case, bivariate detection
-                XB=X.temp%*%Par$det
+                if(Meta$detect)XB=X.temp%*%Par$det
                 for(iind in 1:Cur.G[isp,itrans]){
-                  if(Meta$point.ind){
+                  if(Meta$point.ind & Meta$detect){
                     cur.dist=Cur.dat[iind*2,Meta$dist.pl]
                     if(Meta$last.ind)Sigma[offdiag]=Par$cor*(Meta$i.binned*(Meta$n.bins-cur.dist)*dist.mult+(1-Meta$i.binned)*cur.dist)
                     else Sigma[offdiag]=Par$cor*(Meta$i.binned*(cur.dist-1)*dist.mult+(1-Meta$i.binned)*cur.dist)
                   }    
-                  Cur.det=(rmvnorm(1,XB[(iind*2-1):(iind*2)],Sigma)>0)  #bivariate normal detection
+                  if(Meta$detect)Cur.det=(rmvnorm(1,XB[(iind*2-1):(iind*2)],Sigma)>0)  #bivariate normal detection
+                  else Cur.det=c(1,1)
                   if(sum(Cur.det)>0){
-                    Cur.obs=c(0,0)
-                    for(iobs in 1:2){
-                      if(Cur.det[iobs]==1){ #only model misID for detections
-                        Conf=get_confusion_mat(Cur.dat=matrix(Cur.dat[iind*2-2+iobs,],nrow=1),Beta=Par$MisID,misID.mat=Meta$misID.mat,misID.models=Meta$misID.models,misID.symm=Meta$misID.symm,stacked.names=Meta$stacked.names,factor.ind=Meta$factor.ind,Levels=Meta$Levels)    			
-                        Cur.obs[iobs]=sample(1:ncol(Conf[[1]]),1,prob=Conf[[1]][isp,])
+                    if(Meta$misID){
+                      Cur.obs=rep(0,2)
+                      for(iobs in 1:2){
+                        if(Cur.det[iobs]==1){ #only model misID for detections
+                          Conf=get_confusion_mat(Cur.dat=matrix(Cur.dat[iind*2-2+iobs,],nrow=1),Beta=Par$MisID,misID.mat=Meta$misID.mat,misID.models=Meta$misID.models,misID.symm=Meta$misID.symm,stacked.names=Meta$stacked.names,factor.ind=Meta$factor.ind,Levels=Meta$Levels)    			
+                          Cur.obs[iobs]=sample(1:ncol(Conf[[1]]),1,prob=Conf[[1]][isp,])
+                        }
                       }
                     }
+                    else Cur.obs=rep(Cur.dat[iind*2,3],2)  
                     Pred.det[(iiter-Control$burnin)/Control$thin,itrans,Cur.obs[1]+1,Cur.obs[2]+1]=Pred.det[(iiter-Control$burnin)/Control$thin,itrans,Cur.obs[1]+1,Cur.obs[2]+1]+1                    
                   }
                 }
