@@ -2,18 +2,27 @@
 \alias{generate_inits_misID}
 \title{generate initial values for misID model if not already specified by user}
 \usage{
-  generate_inits_misID(DM.hab, DM.det, N.hab.par,
-    G.transect, Area.trans, Area.hab, Mapping, point.ind,
-    spat.ind, grp.mean, misID, misID.mat, N.par.misID)
+  generate_inits_misID(DM.hab.pois, DM.hab.bern, DM.det,
+    N.hab.pois.par, N.hab.bern.par, G.transect, Area.trans,
+    Area.hab, Mapping, point.ind, spat.ind, grp.mean,
+    misID, misID.mat, N.par.misID)
 }
 \arguments{
-  \item{DM.hab}{a list of design matrices for the habitat
-  model (elements are named sp1,sp2, etc.)}
+  \item{DM.hab.pois}{a list of design matrices for the
+  Poisson habitat model (elements are named sp1,sp2, etc.)}
+
+  \item{DM.hab.bern}{If a hurdle model, a list of design
+  matrices for the Bernoulli habitat model (elements are
+  named sp1,sp2, etc.) (NULL if not hurdle)}
 
   \item{DM.det}{design matrix for detection model}
 
-  \item{N.hab.par}{vector giving number of parameters in
-  the habitat model for each species}
+  \item{N.hab.pois.par}{vector giving number of parameters
+  in the Poisson habitat model for each species}
+
+  \item{N.hab.bern.par}{vector giving number of parameters
+  in the Bernoulli habitat model for each species (NULL if
+  not hurdle)}
 
   \item{G.transect}{a matrix of the number of groups of
   animals in area covered by each transect; each row gives

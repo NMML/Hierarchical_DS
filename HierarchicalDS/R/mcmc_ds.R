@@ -30,8 +30,8 @@
 #'	"MH.nu": MH tuning parameter for Nu parameters (Langevin-Hastings multivariate update);
 #'	"RJ.N": A vector giving the maximum number of additions and deletions proposed in an iteration of the RJMCMC algorithm for each transect
 #'  "iter.fix.N"  Number of iterations to skip RJMCMC step 
-#' @param DM.pois.hab	A design matrix for the Poisson model for abundance intensity (log scale)
-#' @param DM.bern.hab If Meta$ZIP=TRUE, a design matrix for the Bernoulli zero model (probit scale)
+#' @param DM.hab.pois	A design matrix for the Poisson model for abundance intensity (log scale)
+#' @param DM.hab.bern If Meta$ZIP=TRUE, a design matrix for the Bernoulli zero model (probit scale)
 #' @param DM.det	A design matrix for the probit of detection probability
 #' @param Q			An inverse precision matrix for the spatial ICAR process
 #' @param Prior.pars	A list object giving parameters of prior distribution.  Includes the following objects
@@ -103,6 +103,7 @@ mcmc_ds<-function(Par,Data,cur.iter,adapt,Control,DM.hab.pois,DM.hab.bern=NULL,D
 	#require(mvtnorm)
 	#require(Matrix)
 	#require(truncnorm)
+  
 	Lam.index=c(1:Meta$S)
 	if(Meta$i.binned==0)dist.mult=1
 	if(Meta$i.binned==1)dist.mult=1/(Meta$n.bins-1)
@@ -338,19 +339,37 @@ mcmc_ds<-function(Par,Data,cur.iter,adapt,Control,DM.hab.pois,DM.hab.bern=NULL,D
 	for(iiter in 1:cur.iter){
 		#cat(paste('\n ', iiter))
 		for(isp in 1:Meta$n.species){		
+
+		  ########## update abundance parameters at the strata scale   ################
+		  Hab.pois=Par$hab.pois[isp,1:Meta$N.hab.pois.par[isp]]
+		  Eta.pois=Par$Eta.pois[isp,]
+		  
+      if(Meta$ZIP){
+		    Hab.bern=Par$hab.bern[isp,1:Meta$N.hab.bern.par[isp]]
+		    Eta.bern=Par$Eta.bern[isp,]
+      }
+        
+		  #update Z,Z.tilde if ZIP model specified
+		  if(Meta$ZIP){
+		    Z[isp,which(Par$G[isp,]>0)]=1
+		    Which.0=which(Par$G[isp,]==0)
+		    Cur.p=pnorm(DM.hab.bern[[isp]]%*%Hab.bern+Eta.bern) #bernoulli success prob
+		    Cur.pois0=Cur.p*exp(-Meta$Area.hab*exp(Par$Nu[isp,]))
+		    Cur.p=Cur.pois0/((1-Cur.p)+Cur.pois0)
+		    if(length(Which.0)>0)Z[isp,which(Par$G[isp,]==0)]=rbern(length(Which.0),Cur.p[Which.0])
+		    Z.tilde[isp,]=rtruncnorm(Meta$S,a=ifelse(Z[isp,]==1,0,-Inf),b=ifelse(Z[isp,]==1,Inf,0),DM.hab.bern[[isp]]%*%Hab.bern+Eta.bern)       
+		  }
 		  
 		  #update nu parameters (log lambda)
 	 	  #1) for sampled cells for which z-tilde>0 (if ZIP)
-			Hab.pois=Par$hab.pois[isp,1:Meta$N.hab.pois.par[isp]]
-	 	  Eta.pois=Par$Eta.pois[isp,]
 		  Mu=DM.hab.pois[[isp]]%*%Hab.pois+Eta.pois
 		  G.sampled=rep(0,n.unique) #total number of groups currently in each sampled strata
 		  for(i in 1:Meta$n.transects)G.sampled[Sampled==Meta$Mapping[i]]=G.sampled[Sampled==Meta$Mapping[i]]+Meta$G.transect[isp,i]
       for(i in 1:n.unique){
         if(!Meta$ZIP|Z[isp,Sampled[i]]==1){
 		      prop=Par$Nu[isp,Sampled[i]]+runif(1,-Control$MH.nu[isp,i],Control$MH.nu[isp,i])				
-		      old.post=dnorm(Par$Nu[isp,Sampled[i]],Mu[Sampled[i]],1/sqrt(Par$tau.nu[isp]),log=TRUE)+dpois(G.sampled[i],Sampled.area.by.strata[i]*exp(Par$Nu[isp,Sampled[i]]),log=TRUE)
-		      new.post=dnorm(prop,Mu[Sampled[i]],1/sqrt(Par$tau.nu[isp]),log=TRUE)+dpois(G.sampled[i],Sampled.area.by.strata[i]*exp(prop),log=TRUE)
+		      old.post=dnorm(Par$Nu[isp,Sampled[i]],Mu[Sampled[i]],1/sqrt(Par$tau.nu[isp]),log=TRUE)+dpois(G.sampled[i],Sampled.area.by.strata[i]*Meta$Area.hab[Sampled[i]]*exp(Par$Nu[isp,Sampled[i]]),log=TRUE)
+		      new.post=dnorm(prop,Mu[Sampled[i]],1/sqrt(Par$tau.nu[isp]),log=TRUE)+dpois(G.sampled[i],Sampled.area.by.strata[i]*Meta$Area.hab[Sampled[i]]*exp(prop),log=TRUE)
 		      if(runif(1)<exp(new.post-old.post)){
 		        Par$Nu[isp,Sampled[i]]=prop
 		        Accept$Nu[isp,i]=Accept$Nu[isp,i]+1
@@ -370,17 +389,6 @@ mcmc_ds<-function(Par,Data,cur.iter,adapt,Control,DM.hab.pois,DM.hab.bern=NULL,D
 		    cat(paste("Nu: ", (Sys.time()-st),'\n'))
 		    st=Sys.time()
 		  } 
-			########## update abundance parameters at the strata scale   ################
-			#update Z,Z.tilde if ZIP model specified
-			if(Meta$ZIP){
-			  Z[isp,which(Par$G[isp,]>0)]=1
-			  Which.0=which(Par$G[isp,]==0)
-			  Cur.p=pnorm(DM.hab.bern[[isp]]%*%Par$hab.bern[isp,]+Par$Eta.bern[isp,]) #bernoulli success prob
-			  Cur.pois0=Cur.p*exp(-Meta$Area.hab*exp(Mu))
-			  Cur.p=Cur.pois0/((1-Cur.p)+Cur.pois0)
-			  if(length(Which.0)>0)Z[isp,which(Par$G[isp,]==0)]=rbern(length(Which.0),Cur.p[Which.0])
-			  Z.tilde[isp,]=rtruncnorm(S,a=ifelse(Z[isp,]==1,0,-Inf),b=ifelse(Z[isp,]==1,Inf,0),DM.hab.bern[[isp]]%*%Par$hab.bern[isp,]+Par$Eta.bern[isp,])       
-			}
 			
       #update spatial random effects
 			if(Meta$spat.ind==FALSE){
@@ -1045,8 +1053,10 @@ mcmc_ds<-function(Par,Data,cur.iter,adapt,Control,DM.hab.pois,DM.hab.bern=NULL,D
 			}
        #posterior predictions of detection data given nu, detection & misclassification parameters
 			if(Meta$post.loss){ #calculate observed counts of different detection types, initialize prediction arrays
-         Sigma=diag(2)
-        Cur.G=matrix(rpois(Meta$n.species*Meta$n.transects,exp(Par$Nu)),Meta$n.species,Meta$n.transects)		
+        Sigma=diag(2)
+        Cur.lambda=exp(Par$Nu)*Meta$Area.hab[Meta$Mapping]
+        for(isp in 1:Meta$n.species)Cur.lambda[isp,]=Cur.lambda[isp,]*Meta$Area.trans
+        Cur.G=matrix(rpois(Meta$n.species*Meta$n.transects,Cur.lambda),Meta$n.species,Meta$n.transects)		
         if(Meta$ZIP)Cur.G=Z*Cur.G         
         for(itrans in 1:Meta$n.transects){
           for(isp in 1:Meta$n.species){

@@ -21,8 +21,8 @@
 #' @param n.obs.cov	Number of observer covariates (e.g., seat position, visibility, etc.)
 #' @param Hab.cov	A data.frame object giving covariates thought to influence abundance intensity at strata level; column names index individual covariates
 #' @param Obs.cov  A (max # of observers X # of transects X # of observer covariates) size array giving observer covariate values for each transect flown
-#' @param Hab.pois.formula	A formula vector giving the specific model for Poisson abundance intensity at the strata level (e.g., ~Vegetation+Latitude) for each species
-#' @param Hab.bern.formula  If ZIP=TRUE, a formula vector giving the specific model for the zero component for abundance intensity at the strata level (e.g., ~Vegetation+Latitude) for each species
+#' @param Hab.pois.formula	A list of formulas (one for each species) giving the specific model for Poisson abundance intensity at the strata level (e.g., ~Vegetation+Latitude) for each species
+#' @param Hab.bern.formula  If ZIP=TRUE, a list of formulas (one for each species) giving the specific model for the zero component for abundance intensity at the strata level (e.g., ~Vegetation+Latitude) for each species
 #' @param detect If TRUE (the default), detectability is estimated; if FALSE, assumes detection probability is 1.0 (i.e. a strip transect with perfect detection).  
 #' @param Det.formula  A formula giving the model for detection probability (e.g. ~Distance+Group+Visibility+Observer). Note that
 #'				there are several "reserved" variable names.  "Distance", "Observer", "Species", and "Group" are reserved variable names.
@@ -173,11 +173,13 @@ hierarchical_DS<-function(Dat,Adj,Area.hab=1,Mapping,Area.trans,Observers,Bin.le
 	if(misID)Levels$Species=Levels$Species[-which(Levels$Species==(n.species+1))]
   
   #update observer covariate values to reflect new factor values going from 1,2,...
-	for(icov in 1:n.obs.cov){
-	  if((icov+5)%in%which.factors){
-      Obs.cov[,,icov]=as.factor(as.numeric(as.factor(Obs.cov[,,icov])))
-	  }
-	}	
+  if(n.obs.cov>0){
+    for(icov in 1:n.obs.cov){
+      if((icov+5)%in%which.factors){
+        Obs.cov[,,icov]=as.factor(as.numeric(as.factor(Obs.cov[,,icov])))
+      }
+    }	
+  }
 	
 	n.Observers=apply(1-is.na(Observers),2,'sum')
 	if(point.ind==TRUE & max(n.Observers)==1)cat("\n ERROR: can't have point independence when there are no transects with 2 observers \n")
