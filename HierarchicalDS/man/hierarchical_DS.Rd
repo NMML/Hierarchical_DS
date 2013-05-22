@@ -6,9 +6,10 @@ the user needs to call themselves.}
 \usage{
   hierarchical_DS(Dat, Adj, Area.hab = 1, Mapping,
     Area.trans, Observers, Bin.length, Hab.cov, Obs.cov,
-    Hab.formula, Det.formula, detect = TRUE, Cov.prior.pdf,
-    Cov.prior.parms, Cov.prior.fixed, Cov.prior.n,
-    n.obs.cov = 0, pol.eff = c(1:2), point.ind = TRUE,
+    Hab.pois.formula, Hab.bern.formula = NULL, Det.formula,
+    detect = TRUE, Cov.prior.pdf, Cov.prior.parms,
+    Cov.prior.fixed, Cov.prior.n, n.obs.cov = 0,
+    pol.eff = c(1:2), ZIP = FALSE, point.ind = TRUE,
     spat.ind = FALSE, last.ind = FALSE, cor.const = FALSE,
     fix.tau.nu = FALSE, srr = TRUE, srr.tol = 0.5,
     misID = FALSE, misID.models = NULL, misID.mat = NULL,
@@ -68,9 +69,15 @@ the user needs to call themselves.}
   of observer covariates) size array giving observer
   covariate values for each transect flown}
 
-  \item{Hab.formula}{A formula vector giving the specific
-  model for abundance intensity at the strata level (e.g.,
+  \item{Hab.pois.formula}{A list of formulas (one for each
+  species) giving the specific model for Poisson abundance
+  intensity at the strata level (e.g.,
   ~Vegetation+Latitude) for each species}
+
+  \item{Hab.bern.formula}{If ZIP=TRUE, a list of formulas
+  (one for each species) giving the specific model for the
+  zero component for abundance intensity at the strata
+  level (e.g., ~Vegetation+Latitude) for each species}
 
   \item{detect}{If TRUE (the default), detectability is
   estimated; if FALSE, assumes detection probability is 1.0
@@ -128,6 +135,10 @@ the user needs to call themselves.}
   degrees to model (default is c(1:2); an intercept is
   always estimated when "Distance" is listed in
   "Det.formula")}
+
+  \item{ZIP}{If TRUE, estimate ZIP model for abundance that
+  includes a Bernoulli model for zeros and a Poisson + 1
+  model for positive values (default is FALSE)}
 
   \item{point.ind}{Estimate a correlation parameter for
   detection probability that's an increasing function of
@@ -200,31 +211,36 @@ the user needs to call themselves.}
   for updating the correlation parameter (if
   point.ind==TRUE); "MH.nu": MH tuning parameters for Nu
   parameters (dimension = # species X # of unique strata
-  sampled) "MH.beta": A matrix of tuning parameters for
-  betas of the abundance process (nrows=number of species,
-  ncol = max number of columns of habitat DM); "RJ.N": A
-  matrix giving the maximum number of additions and
-  deletions proposed in an iteration of the RJMCMC
-  algorithm for each species (row) and each transect
+  sampled) "RJ.N": A matrix giving the maximum number of
+  additions and deletions proposed in an iteration of the
+  RJMCMC algorithm for each species (row) and each transect
   (column) "iter.fix.N": Number of iterations to skip
   RJMCMC step at beginning of estimation (useful for cases
   when estimation is unstable)}
 
   \item{Inits}{An (optional) list object providing initial
   values for model parameters, with the following objects:
-  "Beta.hab": Initial values for habitat linear predictor
-  parameters; "Beta.det": Initial values for detection
-  model (includes distance, observer, env. variables, and
-  individual covariates); "cor.par": If point.ind==TRUE,
-  this is an initial value for the correlation parameter
-  (which must be in (0,1)); "Nu": Gives log(lambda) for
-  each spatial strata; "Eta": If spat.ind==FALSE, spatial
-  random effects; one for each strata; "tau.eta": If
-  spat.ind==FALSE, precision for spatial ICAR model;
-  "tau.nu": Precision for Nu (overdispersion relative to
-  the Poisson distribution) One need not specify an initial
-  value for all parameter types (if less are specified, the
-  others are generated randomly)}
+  "hab.pois": Initial values for habitat linear predictor
+  parameters for poisson model; "hab.bern": If ZIP=TRUE,
+  initial values for habitat linear predictor parameters
+  for bernoulli zero model; "det": Initial values for
+  detection model (includes distance, observer, env.
+  variables, and individual covariates); "cor.par": If
+  point.ind==TRUE, this is an initial value for the
+  correlation parameter (which must be in (0,1)); "Nu":
+  Gives log(lambda) for each spatial strata; "Eta.pois": If
+  spat.ind==FALSE, spatial random effects for Poisson
+  abundance model; one for each cell and for each species
+  "Eta.bern": If spat.ind==FALSE & ZIP=TRUE, spatial random
+  effects for Bernoulli abundance model; one for each cell
+  and for each species "tau.eta.pois": If spat.ind==FALSE,
+  precision for spatial ICAR model(s) for the Poisson
+  component "tau.eta.bern": If spat.ind==FALSE & ZIP=TRUE,
+  precision for spatial ICAR model(s) for the Bernoulli
+  component "tau.nu": Precision for Nu (overdispersion
+  relative to the Poisson distribution) One need not
+  specify an initial value for all parameter types (if less
+  are specified, the others are generated randomly)}
 
   \item{adapt}{If adapt==TRUE, run an additional
   Control$adapt number of MCMC iterations to optimize MCMC

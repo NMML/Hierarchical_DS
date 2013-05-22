@@ -2,25 +2,40 @@
 \alias{mcmc_ds}
 \title{Function for MCMC analysis}
 \usage{
-  mcmc_ds(Par, Data, cur.iter, adapt, Control, DM.hab,
-    DM.det, Q, Prior.pars, Meta)
+  mcmc_ds(Par, Data, cur.iter, adapt, Control, DM.hab.pois,
+    DM.hab.bern = NULL, DM.det, Q, Prior.pars, Meta)
 }
 \arguments{
   \item{Par}{A list comprised of the following parameters:
   "det": a vector giving the current iteration's linear
-  model parameters for the detection model; "hab": a vector
-  giving the current iteration's linear model parameters
-  for abundance intensity; "cor": a correlation parameter
-  for detections that's an increasing function of distance
+  model parameters for the detection model; "hab.pois": a
+  vector giving the current iteration's linear model
+  parameters for Poisson abundance intensity; each row
+  gives parameters for a particular species "hab.bern": a
+  vector giving the current iteration's linear model
+  parameters for Bernoulli part of ZIP model for abundance
+  (if Meta$ZIP=TRUE) "cor": a correlation parameter for
+  detections that's an increasing function of distance
   (correlation at the maximum distance); "Nu": a vector
   giving the log of the abundance intensity for each
-  strata; "G": a vector giving the number of groups of
-  animals in each strata; "N": a vector giving the number
-  of animals in each strata "MisID": a list, each entry i
-  of which is a vector holding the parameters for the ith
-  misID model "Cov.par": an (n.species X n X n.ind.cov)
-  array holding parameters of individual covariate
-  distributions.}
+  strata; "Eta.pois": If Meta$spat.ind==FALSE, spatial
+  random effects for Poisson abundance model; one for each
+  cell and for each species "Eta.bern": If
+  Meta$spat.ind==FALSE & Meta$ZIP=TRUE, spatial random
+  effects for Bernoulli abundance model; one for each cell
+  and for each species "tau.eta.pois": If
+  Meta$spat.ind==FALSE, precision for spatial ICAR model(s)
+  for the Poisson component "tau.eta.bern": If
+  Meta$spat.ind==FALSE & Meta$ZIP=TRUE, precision for
+  spatial ICAR model(s) for the Bernoulli component
+  "tau.nu": Precision for Nu (overdispersion relative to
+  the Poisson distribution) "G": a vector giving the number
+  of groups of animals in each strata; "N": a vector giving
+  the number of animals in each strata "MisID": a list,
+  each entry i of which is a vector holding the parameters
+  for the ith misID model "Cov.par": an (n.species X n X
+  n.ind.cov) array holding parameters of individual
+  covariate distributions.}
 
   \item{Data}{A four dimensional array; the first dimension
   gives species, the second gives the transect, the third
@@ -47,15 +62,16 @@
   for updating the correlation parameter (if
   Meta$point.ind==TRUE); "MH.nu": MH tuning parameter for
   Nu parameters (Langevin-Hastings multivariate update);
-  "MH.beta": A matrix of tuning parameters for betas of the
-  abundance process (nrows=number of species, ncol = max
-  number of columns of habitat DM); "RJ.N": A vector giving
-  the maximum number of additions and deletions proposed in
-  an iteration of the RJMCMC algorithm for each transect
-  "iter.fix.N" Number of iterations to skip RJMCMC step}
+  "RJ.N": A vector giving the maximum number of additions
+  and deletions proposed in an iteration of the RJMCMC
+  algorithm for each transect "iter.fix.N" Number of
+  iterations to skip RJMCMC step}
 
-  \item{DM.hab}{A design matrix for the log of abundance
-  intensity}
+  \item{DM.hab.pois}{A design matrix for the Poisson model
+  for abundance intensity (log scale)}
+
+  \item{DM.hab.bern}{If Meta$ZIP=TRUE, a design matrix for
+  the Bernoulli zero model (probit scale)}
 
   \item{DM.det}{A design matrix for the probit of detection
   probability}
@@ -129,37 +145,40 @@
   indicator vector for whether parameters of each covariate
   distribution should be fixed within estimation routine
   "Cov.prior.n" (#species X #covariates) Matrix giving
-  number of parameters in each covariate pdf "point.ind"
-  Indicator for whether point independence assumed (if no,
-  then no correlation modeled b/w multiple observers as
-  function of distance) "last.ind" If TRUE (and
-  point.ind=TRUE), point independence operates by assuming
-  0 dependence at the farthest bin "cor.const" If TRUE,
-  forces estimates of correlation associated with point
-  independence to be positive if last.ind==FALSE or
-  negative if last.ind==TRUE (default is FALSE)
-  "fix.tau.nu" Indicator for whether tau.nu should be fixed
-  (1) or estimated(0) "srr" Indicator for whether a
-  spatially restricted regression model should be employed
-  (1) or not (0) "srr.tol" Threshold eigenvalue level for
-  SRR; only eigenvectors with higher eigenvalues than
-  srr.tol are included in SRR formulation "misID" If TRUE,
-  misidentification of species is modeled "misID.mat" With
-  true state on rows and assigned state on column, each
-  positive entry provides an index to misID.models (i.e.
-  what model to assume on multinomial logit space); a 0
-  indicates an impossible assigment; a negative number
-  designates which column is to be obtained via subtraction
-  "misID.models" A formula vector providing linar
-  model-type formulas for each positive value of misID.mat.
-  "misID.symm" If TRUE, classification probabilities
-  assumed to be symmetric (e.g. pi^{2|1}=pi^{1|2})
-  "N.par.misID" A vector specifying the number of
-  parameters needed for each misID model "N.hab.par" A
+  number of parameters in each covariate pdf "ZIP" If TRUE,
+  fit a ZIP model to abundance "point.ind" Indicator for
+  whether point independence assumed (if no, then no
+  correlation modeled b/w multiple observers as function of
+  distance) "last.ind" If TRUE (and point.ind=TRUE), point
+  independence operates by assuming 0 dependence at the
+  farthest bin "cor.const" If TRUE, forces estimates of
+  correlation associated with point independence to be
+  positive if last.ind==FALSE or negative if last.ind==TRUE
+  (default is FALSE) "fix.tau.nu" Indicator for whether
+  tau.nu should be fixed (1) or estimated(0) "srr"
+  Indicator for whether a spatially restricted regression
+  model should be employed (1) or not (0) "srr.tol"
+  Threshold eigenvalue level for SRR; only eigenvectors
+  with higher eigenvalues than srr.tol are included in SRR
+  formulation "misID" If TRUE, misidentification of species
+  is modeled "misID.mat" With true state on rows and
+  assigned state on column, each positive entry provides an
+  index to misID.models (i.e. what model to assume on
+  multinomial logit space); a 0 indicates an impossible
+  assigment; a negative number designates which column is
+  to be obtained via subtraction "misID.models" A formula
+  vector providing linar model-type formulas for each
+  positive value of misID.mat.  "misID.symm" If TRUE,
+  classification probabilities assumed to be symmetric
+  (e.g. pi^{2|1}=pi^{1|2}) "N.par.misID" A vector
+  specifying the number of parameters needed for each misID
+  model "N.hab.pois.par" A vector specifying the number of
+  parameters needed for each species' Poisson abundance
+  model "N.hab.bern.par" If fitting a ZIP model, this
   vector specifying the number of parameters needed for
-  each species' habitat model "post.loss" If TRUE, observed
-  and predicted detections are compiled for posterior
-  predictive loss}
+  each species' Bernoulli zero model "post.loss" If TRUE,
+  observed and predicted detections are compiled for
+  posterior predictive loss}
 }
 \value{
   returns a list with the following objects: "MCMC": An
@@ -173,11 +192,11 @@
   (n.species X # samples X # transects) "Pred.N": Posterior
   predictive distribution for abundance in each transect;
   obtained by sampling a Poisson distribution given current
-  parameter values "Post": Holds posterior samples for
-  strata specific group sizes ("Post$G") and abundance
-  ("Post$N") "Obs.det": if Meta$post.loss=TRUE, an array
-  holding observed detection types for posterior predictive
-  loss calculations dim =
+  parameter values (with possible zero inflation) "Post":
+  Holds posterior samples for strata specific group sizes
+  ("Post$G") and abundance ("Post$N") "Obs.det": if
+  Meta$post.loss=TRUE, an array holding observed detection
+  types for posterior predictive loss calculations dim =
   c(n.transects,n.obs.types,n.obs.types) "Pred.det": if
   Meta$post.loss=TRUE, an array holding predicted detection
   types for posterior predictive loss calculations dim =

@@ -103,7 +103,7 @@ mcmc_ds<-function(Par,Data,cur.iter,adapt,Control,DM.hab.pois,DM.hab.bern=NULL,D
 	#require(mvtnorm)
 	#require(Matrix)
 	#require(truncnorm)
-  
+  SMALL=10^{-20}
 	Lam.index=c(1:Meta$S)
 	if(Meta$i.binned==0)dist.mult=1
 	if(Meta$i.binned==1)dist.mult=1/(Meta$n.bins-1)
@@ -498,7 +498,7 @@ mcmc_ds<-function(Par,Data,cur.iter,adapt,Control,DM.hab.pois,DM.hab.bern=NULL,D
 							for(i in 1:a){
 								if(Meta$last.ind)Sigma[offdiag]=Par$cor*(Meta$i.binned*(Meta$n.bins-Cur.dat[i*Meta$n.Observers[itrans],Meta$dist.pl])*dist.mult+(1-Meta$i.binned)*(1-Cur.dat[i*Meta$n.Observers[itrans],Meta$dist.pl]))
                 else Sigma[offdiag]=Par$cor*(Meta$i.binned*(Cur.dat[i*Meta$n.Observers[itrans],Meta$dist.pl]-1)*dist.mult+(1-Meta$i.binned)*Cur.dat[i*Meta$n.Observers[itrans],Meta$dist.pl])
-								P[i]=pmvnorm(upper=rep(0,Meta$n.Observers[itrans]),mean=ExpY[(i*Meta$n.Observers[itrans]-Meta$n.Observers[itrans]+1):(i*Meta$n.Observers[itrans])],sigma=Sigma)
+								P[i]=max(pmvnorm(upper=rep(0,Meta$n.Observers[itrans]),mean=ExpY[(i*Meta$n.Observers[itrans]-Meta$n.Observers[itrans]+1):(i*Meta$n.Observers[itrans])],sigma=Sigma),SMALL)
 							}
 							tmp.sum=0
 							for(i in 1:a)tmp.sum=tmp.sum-log(Meta$G.transect[isp,itrans]-G.obs[isp,itrans]+i)+log(P[i])

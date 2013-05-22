@@ -121,7 +121,8 @@ hierarchical_DS<-function(Dat,Adj,Area.hab=1,Mapping,Area.trans,Observers,Bin.le
 	if(nrow(M)!=n.species)cat("\n ERROR: M does not have nrow = number of species \n")
 	if(ncol(M)!=n.transects)cat("\n ERROR: M does not have ncol = number of transects \n")
   if(ncol(Control$RJ.N)!=n.transects)cat("\n ERROR: # columns of Control$RJ.N not = number of transects \n")		
-
+  if(ZIP==TRUE & is.null(Hab.bern.formula))cat("\n ERROR: must specify Hab.bern.formula when ZIP=TRUE \n")
+  if(n.species!=length(Hab.pois.formula))cat("\n ERROR: make sure length of Hab.pois.formula list equal to the number of species \n")
   #More later...	
   
   #adust M to be divisible by 2
