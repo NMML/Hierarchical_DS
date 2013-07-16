@@ -2,7 +2,7 @@
 Release notes for hierarchicalDS  May 13 2013
 Paul Conn paul.conn@noaa.gov 
 
-v2.0 Release
+v2.0 Release 9/28/12
 
 -Species misclassification models now implemented
 -Removes dependency on ggplot2 
@@ -22,7 +22,7 @@ v2.0 Release
  This scaling helps mixing and provides structure on beta parameters; previous implementation had a bug that the prior sd could be specified
  for beta parameters but in effect an improper prior was always used during estimation.
 
-v2.1 Release
+v2.1 Release - ??/??/??
 
 -Zero-inflation implemented; when spatial autocorrelation is modeled separate spatial models are used for the
 Poisson process and for the zero inflation process.  This makes the models very data hungry and limited testing suggests
@@ -35,3 +35,5 @@ that results will only be reliable using this approach if sample sizes (and spat
 -Added rect_adj and rect_adj_RW2 functions for spatial neighborhood construction
 -fixed documentation for Hab_pois_formula to indicate it needs to be a list
 -Added vignette
+-fixed problems with small detection probabilities and/or high detection correlation causing numerical errors with sparse data
+ (max correlation now has bounds [-0.95,0.95]; detection probability lower bound 10^-20)
