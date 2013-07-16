@@ -500,7 +500,6 @@ mcmc_ds<-function(Par,Data,cur.iter,adapt,Control,DM.hab.pois,DM.hab.bern=NULL,D
                 else Sigma[offdiag]=Par$cor*(Meta$i.binned*(Cur.dat[i*Meta$n.Observers[itrans],Meta$dist.pl]-1)*dist.mult+(1-Meta$i.binned)*Cur.dat[i*Meta$n.Observers[itrans],Meta$dist.pl])
 								P[i]=max(pmvnorm(upper=rep(0,Meta$n.Observers[itrans]),mean=ExpY[(i*Meta$n.Observers[itrans]-Meta$n.Observers[itrans]+1):(i*Meta$n.Observers[itrans])],sigma=Sigma),SMALL)
 							}
-							tmp.sum=0
 							for(i in 1:a)tmp.sum=tmp.sum-log(Meta$G.transect[isp,itrans]-G.obs[isp,itrans]+i)+log(P[i])
 							MH.prob=exp(a*log(Lambda.trans[isp,itrans])+tmp.sum)
 							if(runif(1)<MH.prob){
@@ -564,6 +563,7 @@ mcmc_ds<-function(Par,Data,cur.iter,adapt,Control,DM.hab.pois,DM.hab.bern=NULL,D
 							Data[isp,itrans,(n.Records[isp,itrans]+1):Meta$M[isp,itrans],Meta$dist.pl+icov]=rep(rsamp,each=Meta$n.Observers[itrans])
 						}
 					}
+          #if(sum(is.na(Data[isp,itrans,,7]))>0)cat(paste("no pop first; iiter ",iiter," isp ",isp," itrans ",itrans))
 					
 					#update distances, individual covariates for animals that ARE in the population but never observed
 					cur.G=Meta$G.transect[isp,itrans]-G.obs[isp,itrans]
@@ -605,7 +605,8 @@ mcmc_ds<-function(Par,Data,cur.iter,adapt,Control,DM.hab.pois,DM.hab.bern=NULL,D
 								if(is.vector(Cur.dat))Cur.dat=matrix(Cur.dat,1,length(Cur.dat))
 								cur.dist=Cur.dat[,Meta$dist.pl]
 								X=get_mod_matrix(Cur.dat=Cur.dat,Meta$stacked.names,Meta$factor.ind,Meta$Det.formula,Meta$Levels)
-								ExpY=X%*%Par$det
+			          #if(iiter==8173 & itrans==21)stop('crap')
+                ExpY=X%*%Par$det
 								L.old=c(1:length(Cov.star))
 								for(i in 1:length(Cov.star)){
 								  if(Meta$last.ind)Sigma[offdiag]=Par$cor*(Meta$i.binned*(Meta$n.bins-cur.dist[i])*dist.mult+(1-Meta$i.binned)*cur.dist[i])
@@ -629,6 +630,7 @@ mcmc_ds<-function(Par,Data,cur.iter,adapt,Control,DM.hab.pois,DM.hab.bern=NULL,D
 					  Meta$N.transect[isp,itrans]=0
 					  if(Meta$G.transect[isp,itrans]>0)Meta$N.transect[isp,itrans]=sum(Data[isp,itrans,1:n.Records[isp,itrans],Meta$stacked.names=="Group"])/Meta$n.Observers[itrans]
 					}
+					#if(sum(is.na(Data[isp,itrans,,7]))>0)cat(paste("not obs first; iiter ",iiter," isp ",isp," itrans ",itrans))
 					
 					
 					#update Y.tilde
@@ -876,7 +878,7 @@ mcmc_ds<-function(Par,Data,cur.iter,adapt,Control,DM.hab.pois,DM.hab.bern=NULL,D
 			#update correlation parameter for detection process (if applicable)
 			if(Meta$point.ind==1){
 				cor.star=Par$cor+runif(1,-Control$MH.cor,Control$MH.cor)
-				if(cor.star>max(-1,-1*(1-(Meta$last.ind==FALSE & Meta$cor.const==TRUE))) & cor.star<min(1,1*(1-(Meta$last.ind==TRUE & Meta$cor.const==TRUE)))){
+				if(cor.star>max(-0.95,-0.95*(1-(Meta$last.ind==FALSE & Meta$cor.const==TRUE))) & cor.star<min(0.95,0.95*(1-(Meta$last.ind==TRUE & Meta$cor.const==TRUE)))){
 					Delta1=rep(NA,sum(Meta$G.transect[,which(Meta$n.Observers==2)]))
 					Delta2=Delta1
 					Dist=Delta1
@@ -994,6 +996,10 @@ mcmc_ds<-function(Par,Data,cur.iter,adapt,Control,DM.hab.pois,DM.hab.bern=NULL,D
         }
       }
 		}
+    #if(is.na(Par$Cov.par[1,1,1])){
+    #  cat("par first, iter ")
+    #  cat(iiter)
+    #}
 		if(PROFILE==TRUE){
 			cat(paste("Ind cov pars: ", (Sys.time()-st),'\n'))
 			st=Sys.time()
