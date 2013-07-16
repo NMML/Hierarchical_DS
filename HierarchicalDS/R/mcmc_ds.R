@@ -500,10 +500,7 @@ mcmc_ds<-function(Par,Data,cur.iter,adapt,Control,DM.hab.pois,DM.hab.bern=NULL,D
                 else Sigma[offdiag]=Par$cor*(Meta$i.binned*(Cur.dat[i*Meta$n.Observers[itrans],Meta$dist.pl]-1)*dist.mult+(1-Meta$i.binned)*Cur.dat[i*Meta$n.Observers[itrans],Meta$dist.pl])
 								P[i]=max(pmvnorm(upper=rep(0,Meta$n.Observers[itrans]),mean=ExpY[(i*Meta$n.Observers[itrans]-Meta$n.Observers[itrans]+1):(i*Meta$n.Observers[itrans])],sigma=Sigma),SMALL)
 							}
-<<<<<<< HEAD
               tmp.sum=0
-=======
->>>>>>> c8c87ca6583ef6297c0fb563c461ec0bc2407f8c
 							for(i in 1:a)tmp.sum=tmp.sum-log(Meta$G.transect[isp,itrans]-G.obs[isp,itrans]+i)+log(P[i])
 							MH.prob=exp(a*log(Lambda.trans[isp,itrans])+tmp.sum)
 							if(runif(1)<MH.prob){
